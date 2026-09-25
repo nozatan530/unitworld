@@ -162,7 +162,10 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
     svg.call(zoom);
 
     // Initial positioning
-    svg.call(zoom.transform, d3.zoomIdentity.translate(20, 0).scale(0.9));
+    // 横幅に収まる倍率から始める（深さ × 170px の列が並ぶ）
+    const maxDepth = Math.max(0, ...graphData.nodes.map((n) => n.depth));
+    const fit = Math.min(0.9, width / (60 + maxDepth * 170 + 80));
+    svg.call(zoom.transform, d3.zoomIdentity.translate(10, (height * (1 - fit)) / 2).scale(fit));
 
     // Arrow markers
     const defs = svg.append('defs');
@@ -170,26 +173,28 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
       .append('marker')
       .attr('id', 'tree-arrow-mul')
       .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 28)
+      .attr('refX', 10)
       .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
+      .attr('markerWidth', 11)
+      .attr('markerHeight', 11)
+      .attr('markerUnits', 'userSpaceOnUse')
       .attr('orient', 'auto')
       .append('path')
-      .attr('d', 'M0,-4L10,0L0,4')
+      .attr('d', 'M0,-5L10,0L0,5')
       .attr('fill', '#06B6D4');
 
     defs
       .append('marker')
       .attr('id', 'tree-arrow-div')
       .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 28)
+      .attr('refX', 10)
       .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
+      .attr('markerWidth', 11)
+      .attr('markerHeight', 11)
+      .attr('markerUnits', 'userSpaceOnUse')
       .attr('orient', 'auto')
       .append('path')
-      .attr('d', 'M0,-4L10,0L0,4')
+      .attr('d', 'M0,-5L10,0L0,5')
       .attr('fill', '#0284C7');
 
     // Force Simulation
@@ -203,8 +208,8 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
           .distance((d) => (d.op === 'mul' ? 90 : 120))
       )
       .force('charge', d3.forceManyBody().strength(-260))
-      .force('collide', d3.forceCollide().radius(48).iterations(2))
-      .force('x', d3.forceX<D3Node>((d) => 60 + d.depth * 170).strength(1))
+      .force('collide', d3.forceCollide().radius(52).strength(1).iterations(4))
+      .force('x', d3.forceX<D3Node>((d) => 60 + d.depth * 170).strength(0.35))
       .force('y', d3.forceY(height / 2).strength(0.06));
 
     // Links layer
@@ -338,11 +343,26 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
 
     // Simulation Tick Updates
     simulation.on('tick', () => {
+      // 円の縁から縁へ結び、矢印の先を相手の円に当てる
+      const r = (n: D3Node) => (n.type === 'product' ? 31 : n.type === 'base' ? 25 : 21);
+      const ends = (d: D3Link) => {
+        const src = d.source as D3Node;
+        const tgt = d.target as D3Node;
+        const dx = (tgt.x || 0) - (src.x || 0);
+        const dy = (tgt.y || 0) - (src.y || 0);
+        const len = Math.hypot(dx, dy) || 1;
+        return {
+          x1: (src.x || 0) + (dx / len) * r(src),
+          y1: (src.y || 0) + (dy / len) * r(src),
+          x2: (tgt.x || 0) - (dx / len) * (r(tgt) + 2),
+          y2: (tgt.y || 0) - (dy / len) * (r(tgt) + 2),
+        };
+      };
       link
-        .attr('x1', (d) => (d.source as D3Node).x || 0)
-        .attr('y1', (d) => (d.source as D3Node).y || 0)
-        .attr('x2', (d) => (d.target as D3Node).x || 0)
-        .attr('y2', (d) => (d.target as D3Node).y || 0);
+        .attr('x1', (d) => ends(d).x1)
+        .attr('y1', (d) => ends(d).y1)
+        .attr('x2', (d) => ends(d).x2)
+        .attr('y2', (d) => ends(d).y2);
 
       node.attr('transform', (d) => `translate(${d.x || 0}, ${d.y || 0})`);
     });

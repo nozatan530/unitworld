@@ -36,6 +36,23 @@ const fitWorld = (rect: DOMRect) => {
   return { scale: s, pan: { x: (rect.width - WORLD_SIZE.width * s) / 2, y: 70 + (rect.height - 70 - WORLD_SIZE.height * s) / 2 } };
 };
 
+// 単位の枠：記号の長さから幅を決める（漢字は1文字分、英数字は約0.58文字分）
+const SYM_FONT = 18;
+const nodeBox = (u: UnitDefinition, lang: 'ja' | 'en') => {
+  const sym = uSym(u, lang);
+  const width = [...sym].reduce((w, ch) => w + (/[\u3040-\u9fff]/.test(ch) ? 1.0 : 0.6), 0) * SYM_FONT;
+  return { w: Math.max(52, Math.round(width + 24)), h: 44 };
+};
+// 枠の中心から (tx, ty) へ向かう線が枠と交わる点（gap だけ外側）
+const edgePoint = (u: UnitDefinition, tx: number, ty: number, lang: 'ja' | 'en', gap: number): [number, number] => {
+  const { w, h } = nodeBox(u, lang);
+  const dx = tx - u.x;
+  const dy = ty - u.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const t = Math.min(dx !== 0 ? (w / 2) / Math.abs(dx) : Infinity, dy !== 0 ? (h / 2) / Math.abs(dy) : Infinity);
+  return [u.x + dx * t + (dx / len) * gap, u.y + dy * t + (dy / len) * gap];
+};
+
 // ラベルは括弧の補足を省き、長いものだけ切る
 const shortQty = (q: string, lang: 'ja' | 'en') => {
   const base = q.split(/\s*[（(]/)[0].split(/[・,]/)[0];
@@ -490,50 +507,18 @@ export const UnitMap: React.FC<UnitMapProps> = ({
           style={{ touchAction: 'none' }}
         >
           <defs>
-            {/* Custom Arrow Markers */}
-            <marker
-              id="arrow-default"
-              viewBox="0 0 10 10"
-              refX="18"
-              refY="5"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94A3B8" opacity="0.6" />
+            {/* 矢印：大きさは線の太さに関係なく一定。先端（refX=10）が線の終点にぴったり重なる */}
+            <marker id="arrow-default" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8" />
             </marker>
-            <marker
-              id="arrow-incoming"
-              viewBox="0 0 10 10"
-              refX="18"
-              refY="5"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1 L 9 5 L 0 9 z" fill="#0284C7" />
+            <marker id="arrow-incoming" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0284C7" />
             </marker>
-            <marker
-              id="arrow-outgoing"
-              viewBox="0 0 10 10"
-              refX="18"
-              refY="5"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1 L 9 5 L 0 9 z" fill="#10B981" />
+            <marker id="arrow-outgoing" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#10B981" />
             </marker>
-            <marker
-              id="arrow-path"
-              viewBox="0 0 10 10"
-              refX="18"
-              refY="5"
-              markerWidth="8"
-              markerHeight="8"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#06B6D4" />
+            <marker id="arrow-path" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="15" markerHeight="15" markerUnits="userSpaceOnUse" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#06B6D4" />
             </marker>
           </defs>
 
@@ -628,15 +613,10 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                   opacity = 0.12;
                 }
 
-                // Curved bezier path between source and target
-                const dx = tgt.x - src.x;
-                const dy = tgt.y - src.y;
-                const cx1 = src.x + dx * 0.45;
-                const cy1 = src.y;
-                const cx2 = src.x + dx * 0.55;
-                const cy2 = tgt.y;
-
-                const pathData = `M ${src.x} ${src.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${tgt.x} ${tgt.y}`;
+                // 単位の枠の端から端へまっすぐ結ぶ（矢印の先が枠に当たる）
+                const [x1, y1] = edgePoint(src, tgt.x, tgt.y, lang, 3);
+                const [x2, y2] = edgePoint(tgt, src.x, src.y, lang, 3);
+                const pathData = `M ${x1} ${y1} L ${x2} ${y2}`;
 
                 return (
                   <g key={link.id}>
@@ -653,8 +633,8 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                     {/* Optional operation label when highlighted */}
                     {(isIncoming || isOutgoing || isPathEdge) && (
                       <text
-                        x={(src.x + tgt.x) / 2}
-                        y={(src.y + tgt.y) / 2 - 6}
+                        x={(x1 + x2) / 2}
+                        y={(y1 + y2) / 2 - 6}
                         fill={isPathEdge ? '#0E7490' : isIncoming ? '#0369A1' : '#047857'}
                         fontSize="12"
                         fontWeight="800"
@@ -692,25 +672,25 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                   nodeOpacity = 0.28;
                 }
 
-                // Node size
-                const radius = isBase ? 32 : isSelected ? 30 : 26;
+                // 枠の大きさは記号の長さに合わせる
+                const box = nodeBox(u, lang);
 
                 // Node fill & ring color
                 let ringColor = isBase ? '#475569' : '#CBD5E1';
-                let ringWidth = isBase ? 3.5 : 2;
+                let ringWidth = isBase ? 3 : 1.5;
 
                 if (isSelected) {
                   ringColor = '#0284C7';
-                  ringWidth = 4;
+                  ringWidth = 3.5;
                 } else if (isInPath) {
                   ringColor = '#06B6D4';
-                  ringWidth = 4;
+                  ringWidth = 3.5;
                 } else if (isIncoming) {
                   ringColor = '#0284C7';
-                  ringWidth = 3.5;
+                  ringWidth = 3;
                 } else if (isOutgoing) {
                   ringColor = '#10B981';
-                  ringWidth = 3.5;
+                  ringWidth = 3;
                 }
 
                 return (
@@ -726,26 +706,9 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                     onMouseLeave={() => setHoveredUnitId(null)}
                     className="cursor-pointer select-none"
                   >
-                    {/* Golden Crown / Base Unit Star Badge */}
-                    {isBase && (
-                      <g transform="translate(0, -36)">
-                        <circle cx="0" cy="0" r="10" fill="#F1F5F9" stroke="#475569" strokeWidth="1.5" />
-                        <text
-                          x="0"
-                          y="3.5"
-                          textAnchor="middle"
-                          fontSize="10"
-                          fontWeight="bold"
-                          fill="#475569"
-                        >
-                          ★
-                        </text>
-                      </g>
-                    )}
-
                     {/* Scale Tag Badge */}
                     {isScale && (
-                      <g transform="translate(0, -32)">
+                      <g transform={`translate(0, ${-box.h / 2 - 12})`}>
                         <rect x="-24" y="-8" width="48" height="16" rx="8" fill="#F5F5F4" stroke="#78716C" strokeWidth="1" />
                         <text x="0" y="3.5" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#57534E">
                           {lang === 'ja' ? '目盛り' : 'scale'}
@@ -753,44 +716,40 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                       </g>
                     )}
 
-                    {/* Main Node Circle */}
-                    <circle
-                      cx="0"
-                      cy="0"
-                      r={isHovered ? radius + 2 : radius}
-                      fill={isDark ? "#1E293B" : "white"}
+                    {/* 単位の枠（基本単位は太い濃い枠） */}
+                    <rect
+                      x={-box.w / 2 - (isHovered ? 2 : 0)}
+                      y={-box.h / 2 - (isHovered ? 2 : 0)}
+                      width={box.w + (isHovered ? 4 : 0)}
+                      height={box.h + (isHovered ? 4 : 0)}
+                      rx={box.h / 2}
+                      fill={isDark ? (isBase ? '#334155' : '#1E293B') : isBase ? '#F1F5F9' : 'white'}
                       stroke={ringColor}
-                      strokeWidth={isHovered ? ringWidth + 1 : ringWidth}
-                      className="transition-colors shadow-sm pointer-events-none"
+                      strokeWidth={ringWidth}
+                      className="transition-colors pointer-events-none"
                       style={{
                         filter: isSelected || isInPath || isHovered
-                          ? 'drop-shadow(0 6px 16px rgba(234, 88, 12, 0.35))'
-                          : 'drop-shadow(0 4px 8px rgba(0,0,0,0.06))',
+                          ? 'drop-shadow(0 6px 16px rgba(2, 132, 199, 0.3))'
+                          : 'drop-shadow(0 3px 6px rgba(0,0,0,0.06))',
                       }}
                     />
 
-                    {/* Stable invisible hit target to prevent any micro-edge mouseleave flicker */}
-                    <circle
-                      cx="0"
-                      cy="0"
-                      r={radius + 12}
-                      fill="transparent"
-                      className="cursor-pointer"
-                    />
+                    {/* Stable invisible hit target */}
+                    <rect x={-box.w / 2 - 10} y={-box.h / 2 - 10} width={box.w + 20} height={box.h + 20} rx={box.h / 2 + 10} fill="transparent" className="cursor-pointer" />
 
                     {/* Center Symbol */}
                     <text
                       x="0"
-                      y={uSym(u, lang).length > 3 ? "2" : "5"}
+                      y="6.5"
                       textAnchor="middle"
                       fontFamily="STIX Two Text, Georgia, serif"
                       fontWeight="bold"
-                      fontSize={uSym(u, lang).length > 5 ? "13" : uSym(u, lang).length > 3 ? "15" : "19"}
+                      fontSize={SYM_FONT}
                       fill={
                         isBase
                           ? isDark ? '#E2E8F0' : '#334155'
                           : isSelected
-                          ? '#0284C7'
+                          ? '#0369A1'
                           : isDark
                           ? '#F1F5F9'
                           : '#1E293B'
@@ -801,7 +760,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                     </text>
 
                     {/* Bottom Quantity Pill Label */}
-                    <g transform={`translate(0, ${radius + 14})`} className="pointer-events-none">
+                    <g transform={`translate(0, ${box.h / 2 + 16})`} className="pointer-events-none">
                       <rect
                         x="-66"
                         y="-12"
