@@ -10,7 +10,7 @@ import {
   getAncestors,
 } from '../../data/unitsData';
 import { sounds } from '../../utils/sound';
-import { uSym, uQty, subjLabel, unitSearchText } from '../../utils/i18n';
+import { uSym, uQty, subjLabel, unitSearchText, bySymLength } from '../../utils/i18n';
 
 interface UnitCatalogProps {
   onSelectUnit: (unit: UnitDefinition) => void;
@@ -169,7 +169,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                       <div>
                         {/* Top Symbol & Tags */}
                         <div className="flex items-start justify-between gap-1 mb-2">
-                          <span className="font-serif font-black text-2xl text-slate-800 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                          <span className={`font-serif font-black whitespace-nowrap text-slate-800 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors ${bySymLength(uSym(u, lang), 'text-2xl', 'text-xl', 'text-lg')}`}>
                             {uSym(u, lang)}
                           </span>
                           {isBase && (

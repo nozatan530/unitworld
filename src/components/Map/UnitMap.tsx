@@ -19,7 +19,7 @@ import {
   formatDimSI,
   WORLD_SIZE,
 } from '../../data/unitsData';
-import { uSym, uName, uQty, realmName, unitSearchText } from '../../utils/i18n';
+import { uSym, uName, uQty, realmName, unitSearchText, bySymLength } from '../../utils/i18n';
 import { sounds } from '../../utils/sound';
 
 interface UnitMapProps {
@@ -430,7 +430,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
       {activeUnit && (
         <div className="absolute bottom-4 left-4 z-20 max-w-sm p-3.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl border border-amber-200/80 dark:border-slate-700 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-400/40 flex items-center justify-center font-serif font-bold text-xl text-amber-600 dark:text-amber-300">
+            <div className={`min-w-12 h-12 px-2 shrink-0 whitespace-nowrap rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-400/40 flex items-center justify-center font-serif font-bold text-amber-600 dark:text-amber-300 ${bySymLength(uSym(activeUnit, lang), 'text-xl', 'text-lg', 'text-base')}`}>
               {uSym(activeUnit, lang)}
             </div>
             <div>

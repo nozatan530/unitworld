@@ -36,3 +36,7 @@ export const SUBJ_TAG_CLASS: Record<string, string> = {
   地学: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   基本: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
 };
+
+// 記号の長さで文字の大きさを選ぶ（枠からはみ出さないように）
+export const bySymLength = (sym: string, short: string, mid: string, long: string) =>
+  sym.length <= 3 ? short : sym.length <= 5 ? mid : long;

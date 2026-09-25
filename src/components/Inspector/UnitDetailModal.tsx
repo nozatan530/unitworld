@@ -13,7 +13,7 @@ import {
   getSameDimensionUnits,
 } from '../../data/unitsData';
 import { sounds } from '../../utils/sound';
-import { uSym, uName, uQty, uConv, subjLabel, SUBJ_TAG_CLASS } from '../../utils/i18n';
+import { uSym, uName, uQty, uConv, subjLabel, SUBJ_TAG_CLASS, bySymLength } from '../../utils/i18n';
 import { UnitTriviaQuizCard } from './UnitTriviaQuizCard';
 
 interface UnitDetailModalProps {
@@ -97,8 +97,8 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
 
           <div className="flex items-start gap-4 pr-10">
             {/* Big Unit Icon Badge */}
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white dark:bg-slate-800 shadow-md border border-amber-200/80 dark:border-slate-700 flex items-center justify-center shrink-0">
-              <span className="font-serif font-bold text-2xl sm:text-3xl text-amber-600 dark:text-amber-400 select-none">
+            <div className="min-w-16 h-16 sm:min-w-20 sm:h-20 px-2.5 rounded-2xl bg-white dark:bg-slate-800 shadow-md border border-amber-200/80 dark:border-slate-700 flex items-center justify-center shrink-0">
+              <span className={`font-serif font-bold whitespace-nowrap text-amber-600 dark:text-amber-400 select-none ${bySymLength(uSym(unit, lang), 'text-2xl sm:text-3xl', 'text-xl sm:text-2xl', 'text-lg sm:text-xl')}`}>
                 {uSym(unit, lang)}
               </span>
             </div>

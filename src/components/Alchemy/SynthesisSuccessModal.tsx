@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { UnitDefinition } from '../../types/unit';
 import { sounds } from '../../utils/sound';
-import { uSym } from '../../utils/i18n';
+import { uSym, bySymLength } from '../../utils/i18n';
 
 interface SynthesisSuccessModalProps {
   unit: UnitDefinition;
@@ -498,8 +498,8 @@ export const SynthesisSuccessModal: React.FC<SynthesisSuccessModalProps> = ({
             />
 
             {/* Tactile 3D Main Emblem Badge */}
-            <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-amber-50 via-white to-orange-100 dark:from-slate-800 dark:via-slate-850 dark:to-slate-750 border-3 border-amber-400 dark:border-amber-500 shadow-2xl shadow-amber-500/30 flex items-center justify-center transform transition-transform hover:scale-108 animate-pop-stamp select-none">
-              <span className="font-serif font-black text-5xl sm:text-6xl text-amber-600 dark:text-amber-400 filter drop-shadow-sm">
+            <div className="min-w-28 h-28 px-4 rounded-3xl bg-gradient-to-br from-amber-50 via-white to-orange-100 dark:from-slate-800 dark:via-slate-850 dark:to-slate-750 border-3 border-amber-400 dark:border-amber-500 shadow-2xl shadow-amber-500/30 flex items-center justify-center transform transition-transform hover:scale-108 animate-pop-stamp select-none">
+              <span className={`font-serif font-black whitespace-nowrap text-amber-600 dark:text-amber-400 filter drop-shadow-sm ${bySymLength(uSym(unit, lang), 'text-5xl sm:text-6xl', 'text-4xl sm:text-5xl', 'text-3xl sm:text-4xl')}`}>
                 {uSym(unit, lang)}
               </span>
             </div>
