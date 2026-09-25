@@ -73,16 +73,15 @@ export function isValidRecord(r: AlchemyHistoryRecord): boolean {
   if (!target || !isCraftable(target) || !Array.isArray(r.ingredients)) return false;
   const dim: Record<string, number> = {};
   let factor = 1;
-  let pieces = 0;
   for (const ing of r.ingredients) {
     const u = unitsById[ing.id];
     if (!u) return false;
     const d = getUnitDim(u);
     for (const k in d) dim[k] = (dim[k] || 0) + d[k] * ing.exp;
     factor *= Math.pow(getUnitFactor(u), ing.exp);
-    pieces += Math.abs(ing.exp);
   }
-  return pieces >= 2 && getDimKey(dim) === getDimKey(getUnitDim(target)) && sameFactor(factor, getUnitFactor(target));
+  const singleAsIs = r.ingredients.length === 1 && r.ingredients[0].exp === 1;
+  return !singleAsIs && getDimKey(dim) === getDimKey(getUnitDim(target)) && sameFactor(factor, getUnitFactor(target));
 }
 
 // 自分で錬成した記録だけを返す（正しくない記録は取り除く）

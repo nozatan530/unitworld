@@ -194,8 +194,9 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
     return f;
   }, [expr]);
 
-  // 材料の個数（2乗は2個と数える）
-  const pieceCount = Object.values(expr).reduce((n, e) => n + Math.abs(e), 0);
+  // 「材料を1つそのまま入れただけ」ではないか（1/s → Hz のような逆数や、m² のような2乗は錬成に数える）
+  const exprEntries = Object.entries(expr);
+  const isRealCraft = !(exprEntries.length === 1 && exprEntries[0][1] === 1);
 
   // 次元も係数も一致し、かけ算・わり算で作れる単位だけを「できた単位」とする
   const matchedUnits = useMemo(() => {
@@ -277,9 +278,9 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
     }
   }, [isQuestCompleted, activeQuest, completedQuests, getFormulaDesc]);
 
-  // 正しくできた組み合わせ（材料2個以上）だけを図鑑とツリー図に記録する
+  // 正しくできた組み合わせだけを図鑑とツリー図に記録する
   useEffect(() => {
-    if (matchedUnits.length === 0 || pieceCount < 2) return;
+    if (matchedUnits.length === 0 || !isRealCraft) return;
     const primaryMatch = matchedUnits[0];
 
     setDiscoveredUnits((prev) => {
@@ -308,7 +309,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
       resultUnitName: primaryMatch.name,
       resultUnitSym: primaryMatch.sym,
     });
-  }, [matchedUnits, expr, currentDim, currentDimKey, pieceCount]);
+  }, [matchedUnits, expr, currentDim, currentDimKey, isRealCraft]);
 
   // Filter palette units
   const filteredPalette = useMemo(() => {
