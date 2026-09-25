@@ -20,6 +20,22 @@ export default function App() {
   const [labInitialSlot, setLabInitialSlot] = useState<'num' | 'den'>('num');
   const [labInitialRecipe, setLabInitialRecipe] = useState<Array<{ id: string; exp: number }> | null>(null);
 
+  // 錬成の目標（ツリー図とラボで共有する）
+  const [targetId, setTargetId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('unit_craft_target');
+      return saved === 'none' ? null : saved || 'N';
+    } catch {
+      return 'N';
+    }
+  });
+  const changeTarget = (id: string | null) => {
+    setTargetId(id);
+    try {
+      localStorage.setItem('unit_craft_target', id ?? 'none');
+    } catch {}
+  };
+
   // Language state
   const [lang, setLang] = useState<'ja' | 'en'>(() => {
     try {
@@ -114,6 +130,8 @@ export default function App() {
             initialUnit={labInitialUnit}
             initialSlot={labInitialSlot}
             initialRecipe={labInitialRecipe}
+            targetId={targetId}
+            onChangeTarget={changeTarget}
             lang={lang}
           />
         )}
@@ -123,6 +141,13 @@ export default function App() {
             onSelectUnit={setSelectedUnit}
             onLoadRecipe={(ingredients) => {
               setLabInitialRecipe(ingredients);
+              setActiveTab('lab');
+            }}
+            targetId={targetId}
+            onChangeTarget={changeTarget}
+            onCraftInLab={() => {
+              setLabInitialRecipe(null);
+              setLabInitialUnit(null);
               setActiveTab('lab');
             }}
             lang={lang}

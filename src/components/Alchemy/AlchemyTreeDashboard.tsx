@@ -1,656 +1,369 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as d3 from 'd3';
-import { GitBranch, Clock, Trash2, Sparkles, RefreshCw, ZoomIn, ZoomOut, RotateCcw, Filter, ExternalLink } from 'lucide-react';
-import { UnitDefinition, AlchemyHistoryRecord } from '../../types/unit';
-import { getAlchemyHistory, clearAlchemyHistory, SAMPLE_HISTORY } from '../../utils/alchemyHistory';
-import { uSym, uName } from '../../utils/i18n';
-import { unitsById } from '../../data/unitsData';
+import { GitBranch, Clock, Trash2, FlaskConical, BookOpen } from 'lucide-react';
+import { UnitDefinition } from '../../types/unit';
+import { getAlchemyHistory, clearAlchemyHistory } from '../../utils/alchemyHistory';
+import { unitsById, getUnitDim, formatDimSI } from '../../data/unitsData';
+import { buildRecipeTree, getCraftedUnits, isStarter, RecipeNode, TARGET_UNITS } from '../../data/crafting';
+import { uSym, uName, uQty } from '../../utils/i18n';
 import { sounds } from '../../utils/sound';
+import { TargetPicker } from './TargetPicker';
 
 interface AlchemyTreeDashboardProps {
   onSelectUnit: (unit: UnitDefinition) => void;
   onLoadRecipe?: (ingredients: Array<{ id: string; exp: number }>) => void;
+  targetId: string | null;
+  onChangeTarget: (id: string | null) => void;
+  onCraftInLab: () => void;
   lang: 'ja' | 'en';
   isDark?: boolean;
 }
 
-interface D3Node extends d3.SimulationNodeDatum {
-  id: string;
-  name: string;
-  sym: string;
-  type: 'base' | 'intermediate' | 'product';
-  unitId?: string;
-  dimSI: string;
-  count: number;
-  depth: number;
-}
+const COL_W = 150; // 列（深さ）の間隔
+const ROW_H = 64; // 行の間隔
+const BOX_H = 40;
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
 
-interface D3Link extends d3.SimulationLinkDatum<D3Node> {
-  source: string | D3Node;
-  target: string | D3Node;
-  op: 'mul' | 'div';
-  exp: number;
-  count: number;
-}
+// 枠の幅は記号の長さから決める
+const boxWidth = (sym: string) =>
+  Math.max(52, Math.round([...sym].reduce((w, ch) => w + (/[぀-鿿]/.test(ch) ? 1 : 0.6), 0) * 17 + 24));
 
 export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
   onSelectUnit,
   onLoadRecipe,
+  targetId,
+  onChangeTarget,
+  onCraftInLab,
   lang,
   isDark = false,
 }) => {
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const ja = lang === 'ja';
+  const [history, setHistory] = useState(() => getAlchemyHistory());
+  const crafted = useMemo(() => getCraftedUnits(), []);
+  const [formIndex, setFormIndex] = useState(0);
 
-  const [history, setHistory] = useState<AlchemyHistoryRecord[]>(() => getAlchemyHistory());
-  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'all' | 'named'>('all');
-  const [hoveredNode, setHoveredNode] = useState<D3Node | null>(null);
+  const target = targetId ? unitsById[targetId] : null;
+  const forms = target?.forms || [];
+  const fi = formIndex < forms.length ? formIndex : 0;
 
-  // Reload history
-  const reloadHistory = () => {
-    sounds.playClick();
-    const updated = getAlchemyHistory();
-    setHistory(updated);
+  // レシピの木を、目標が右端・材料が左へ広がる形に並べる
+  const layout = useMemo(() => {
+    if (!target) return null;
+    const tree = buildRecipeTree(target.id, fi);
+    if (!tree) return null;
+    const root = d3.hierarchy<RecipeNode>(tree, (n) => n.children);
+    d3.tree<RecipeNode>().nodeSize([ROW_H, COL_W])(root);
+    const nodes = root.descendants();
+    const maxDepth = d3.max(nodes, (n) => n.depth) || 0;
+    const minX = d3.min(nodes, (n) => n.x!) || 0;
+    const maxX = d3.max(nodes, (n) => n.x!) || 0;
+    const pad = 70;
+    const pos = (n: d3.HierarchyPointNode<RecipeNode>) => ({
+      x: pad + (maxDepth - n.depth) * COL_W,
+      y: pad / 2 + (n.x - minX) + BOX_H / 2,
+    });
+    return {
+      nodes: nodes as d3.HierarchyPointNode<RecipeNode>[],
+      links: root.links() as d3.HierarchyPointLink<RecipeNode>[],
+      pos,
+      width: pad * 2 + maxDepth * COL_W,
+      height: pad + (maxX - minX) + BOX_H,
+    };
+  }, [target, fi]);
+
+  const isAvailable = (u: UnitDefinition) => isStarter(u) || crafted.has(u.id);
+  const craftedCount = TARGET_UNITS.filter((u) => crafted.has(u.id)).length;
+
+  const pickTarget = (id: string | null) => {
+    setFormIndex(0);
+    onChangeTarget(id);
   };
 
-  const handleClearHistory = () => {
-    if (window.confirm(lang === 'ja' ? '合成履歴をリセットしますか？' : 'Reset alchemy synthesis history?')) {
-      sounds.playBonk();
-      clearAlchemyHistory();
-      setHistory(getAlchemyHistory());
-    }
+  const formText = (form: Array<[string, number]>) => {
+    const part = (list: Array<[string, number]>) =>
+      list
+        .map(([id, e]) => {
+          const n = Math.abs(e);
+          return `${uSym(unitsById[id], lang)}${n > 1 ? SUP[n] : ''}`;
+        })
+        .join('·');
+    const num = form.filter(([, e]) => e > 0);
+    const den = form.filter(([, e]) => e < 0);
+    return `${num.length ? part(num) : '1'}${den.length ? ` / ${den.length > 1 ? `(${part(den)})` : part(den)}` : ''}`;
   };
-
-  // まだ自分の記録がないときは見本を表示する
-  const isSample = history.length === 0;
-  const filteredHistory = useMemo(() => {
-    const list = isSample ? SAMPLE_HISTORY : history;
-    if (filterType === 'named') return list.filter((r) => !!r.resultUnitId);
-    return list;
-  }, [history, filterType, isSample]);
-
-  // 記録からグラフを作る。同じ「材料→できた単位」は1本の線にまとめ、
-  // 基本単位を左端（深さ0）に、材料より右にできた単位を並べる
-  const graphData = useMemo(() => {
-    const nodesMap = new Map<string, D3Node>();
-    const linkMap = new Map<string, D3Link>();
-    const addNode = (id: string) => {
-      if (nodesMap.has(id)) return;
-      const u = unitsById[id];
-      if (!u) return;
-      nodesMap.set(id, {
-        id,
-        name: uName(u, lang),
-        sym: uSym(u, lang),
-        type: u.kind === 'base' ? 'base' : 'intermediate',
-        unitId: u.id,
-        dimSI: u.sym,
-        count: 0,
-        depth: 0,
-      });
-    };
-
-    filteredHistory.forEach((rec) => {
-      if (!rec.resultUnitId || !unitsById[rec.resultUnitId]) return;
-      addNode(rec.resultUnitId);
-      const prod = nodesMap.get(rec.resultUnitId)!;
-      prod.count += 1;
-      if (prod.type !== 'base') prod.type = 'product';
-      rec.ingredients.forEach((ing) => {
-        addNode(ing.id);
-        if (!nodesMap.has(ing.id)) return;
-        const key = `${ing.id}->${rec.resultUnitId}:${ing.exp > 0 ? 'mul' : 'div'}`;
-        const existing = linkMap.get(key);
-        if (existing) existing.count += 1;
-        else
-          linkMap.set(key, {
-            source: ing.id,
-            target: rec.resultUnitId!,
-            op: ing.exp > 0 ? 'mul' : 'div',
-            exp: Math.abs(ing.exp),
-            count: 1,
-          });
-      });
-    });
-
-    // 深さ：材料のいちばん深いものより1つ右（循環しても止まるよう回数を制限）
-    const links = Array.from(linkMap.values());
-    const nodes = Array.from(nodesMap.values());
-    for (let i = 0; i < nodes.length; i++) {
-      let changed = false;
-      for (const l of links) {
-        const src = nodesMap.get(l.source as string)!;
-        const tgt = nodesMap.get(l.target as string)!;
-        if (tgt.type !== 'base' && tgt.depth < src.depth + 1 && src.depth + 1 < nodes.length) {
-          tgt.depth = src.depth + 1;
-          changed = true;
-        }
-      }
-      if (!changed) break;
-    }
-
-    return { nodes, links };
-  }, [filteredHistory, lang]);
-
-  // Render D3 Interactive Force/Tree Layout
-  useEffect(() => {
-    if (!svgRef.current || !containerRef.current) return;
-
-    const width = containerRef.current.clientWidth || 800;
-    const height = Math.max(520, containerRef.current.clientHeight || 560);
-
-    const svg = d3.select(svgRef.current);
-    svg.selectAll('*').remove();
-
-    svg
-      .attr('viewBox', [0, 0, width, height])
-      .attr('width', '100%')
-      .attr('height', '100%');
-
-    // Root zoom container
-    const g = svg.append('g').attr('class', 'tree-root');
-
-    // Zoom behavior
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.3, 3])
-      .on('zoom', (event) => {
-        g.attr('transform', event.transform);
-      });
-
-    svg.call(zoom);
-
-    // Initial positioning
-    // 横幅に収まる倍率から始める（深さ × 170px の列が並ぶ）
-    const maxDepth = Math.max(0, ...graphData.nodes.map((n) => n.depth));
-    const fit = Math.min(0.9, width / (60 + maxDepth * 170 + 80));
-    svg.call(zoom.transform, d3.zoomIdentity.translate(10, (height * (1 - fit)) / 2).scale(fit));
-
-    // Arrow markers
-    const defs = svg.append('defs');
-    defs
-      .append('marker')
-      .attr('id', 'tree-arrow-mul')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 10)
-      .attr('refY', 0)
-      .attr('markerWidth', 11)
-      .attr('markerHeight', 11)
-      .attr('markerUnits', 'userSpaceOnUse')
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#06B6D4');
-
-    defs
-      .append('marker')
-      .attr('id', 'tree-arrow-div')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 10)
-      .attr('refY', 0)
-      .attr('markerWidth', 11)
-      .attr('markerHeight', 11)
-      .attr('markerUnits', 'userSpaceOnUse')
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#0284C7');
-
-    // Force Simulation
-    const simulation = d3
-      .forceSimulation<D3Node>(graphData.nodes)
-      .force(
-        'link',
-        d3
-          .forceLink<D3Node, D3Link>(graphData.links)
-          .id((d) => d.id)
-          .distance((d) => (d.op === 'mul' ? 90 : 120))
-      )
-      .force('charge', d3.forceManyBody().strength(-260))
-      .force('collide', d3.forceCollide().radius(52).strength(1).iterations(4))
-      .force('x', d3.forceX<D3Node>((d) => 60 + d.depth * 170).strength(0.35))
-      .force('y', d3.forceY(height / 2).strength(0.06));
-
-    // Links layer
-    const link = g
-      .append('g')
-      .attr('class', 'links')
-      .selectAll('line')
-      .data(graphData.links)
-      .join('line')
-      .attr('stroke', (d) => (d.op === 'mul' ? '#06B6D4' : '#0284C7'))
-      .attr('stroke-width', (d) => Math.min(5, 1.5 + (d.count - 1) * 0.8))
-      .attr('stroke-dasharray', (d) => (d.op === 'div' ? '4,4' : 'none'))
-      .attr('stroke-opacity', 0.6)
-      .attr('marker-end', (d) => (d.op === 'mul' ? 'url(#tree-arrow-mul)' : 'url(#tree-arrow-div)'));
-
-    // Nodes layer
-    const node = g
-      .append('g')
-      .attr('class', 'nodes')
-      .selectAll<SVGGElement, D3Node>('g')
-      .data(graphData.nodes)
-      .join('g')
-      .attr('class', 'node-group')
-      .style('cursor', 'pointer')
-      .call(
-        d3
-          .drag<SVGGElement, D3Node>()
-          .on('start', (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on('drag', (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on('end', (event, d) => {
-            if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
-      );
-
-    // Node Outer Ring
-    node
-      .append('circle')
-      .attr('r', (d) => (d.type === 'base' ? 24 : d.type === 'product' ? 26 : 20))
-      .attr('fill', (d) => {
-        if (isDark) {
-          return d.type === 'base' ? '#1E293B' : d.type === 'product' ? '#292524' : '#1E242B';
-        }
-        return d.type === 'base' ? '#EFF6FF' : d.type === 'product' ? '#CFFAFE' : '#F1F5F9';
-      })
-      .attr('stroke', (d) => {
-        if (d.type === 'base') return '#3B82F6';
-        if (d.type === 'product') return '#06B6D4';
-        return '#94A3B8';
-      })
-      .attr('stroke-width', (d) => (d.type === 'product' ? 3 : 2))
-      .attr('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.08))');
-
-    // Node Type Glow Ring for Products
-    node
-      .filter((d) => d.type === 'product')
-      .append('circle')
-      .attr('r', 30)
-      .attr('fill', 'none')
-      .attr('stroke', '#06B6D4')
-      .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.4)
-      .attr('stroke-dasharray', '2,2');
-
-    // Node Symbol Text
-    node
-      .append('text')
-      .text((d) => d.sym)
-      .attr('text-anchor', 'middle')
-      .attr('dy', '0.35em')
-      .attr('font-family', 'STIX Two Text, serif')
-      .attr('font-weight', 'bold')
-      .attr('font-size', (d) => (d.sym.length > 4 ? '11px' : d.sym.length > 2 ? '13px' : '16px'))
-      .attr('fill', (d) => {
-        if (isDark) {
-          return d.type === 'base' ? '#60A5FA' : d.type === 'product' ? '#67E8F9' : '#E2E8F0';
-        }
-        return d.type === 'base' ? '#1D4ED8' : d.type === 'product' ? '#0E7490' : '#334155';
-      })
-      .attr('pointer-events', 'none');
-
-    // Node Label Badge (Name of unit)
-    const labelGroup = node
-      .append('g')
-      .attr('transform', 'translate(0, 32)')
-      .attr('pointer-events', 'none');
-
-    labelGroup
-      .append('rect')
-      .attr('x', -40)
-      .attr('y', -8)
-      .attr('width', 80)
-      .attr('height', 16)
-      .attr('rx', 8)
-      .attr('fill', isDark ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.95)')
-      .attr('stroke', isDark ? '#334155' : '#E2E8F0')
-      .attr('stroke-width', 1);
-
-    labelGroup
-      .append('text')
-      .text((d) => (d.name.length > 5 ? d.name.slice(0, 5) + '…' : d.name))
-      .attr('text-anchor', 'middle')
-      .attr('dy', '4')
-      .attr('font-size', '9px')
-      .attr('font-weight', '600')
-      .attr('fill', isDark ? '#CBD5E1' : '#475569');
-
-    // Interactions
-    node
-      .on('mouseenter', (event, d) => {
-        setHoveredNode(d);
-      })
-      .on('mouseleave', () => {
-        setHoveredNode(null);
-      })
-      .on('click', (event, d) => {
-        event.stopPropagation();
-        if (d.unitId && unitsById[d.unitId]) {
-          sounds.playPop();
-          onSelectUnit(unitsById[d.unitId]);
-        }
-      });
-
-    // Simulation Tick Updates
-    simulation.on('tick', () => {
-      // 円の縁から縁へ結び、矢印の先を相手の円に当てる
-      const r = (n: D3Node) => (n.type === 'product' ? 31 : n.type === 'base' ? 25 : 21);
-      const ends = (d: D3Link) => {
-        const src = d.source as D3Node;
-        const tgt = d.target as D3Node;
-        const dx = (tgt.x || 0) - (src.x || 0);
-        const dy = (tgt.y || 0) - (src.y || 0);
-        const len = Math.hypot(dx, dy) || 1;
-        return {
-          x1: (src.x || 0) + (dx / len) * r(src),
-          y1: (src.y || 0) + (dy / len) * r(src),
-          x2: (tgt.x || 0) - (dx / len) * (r(tgt) + 2),
-          y2: (tgt.y || 0) - (dy / len) * (r(tgt) + 2),
-        };
-      };
-      link
-        .attr('x1', (d) => ends(d).x1)
-        .attr('y1', (d) => ends(d).y1)
-        .attr('x2', (d) => ends(d).x2)
-        .attr('y2', (d) => ends(d).y2);
-
-      node.attr('transform', (d) => `translate(${d.x || 0}, ${d.y || 0})`);
-    });
-
-    return () => {
-      simulation.stop();
-    };
-  }, [graphData, isDark, lang, onSelectUnit]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 animate-in fade-in duration-200">
-      {/* Dashboard Top Hero */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-indigo-500/10 dark:from-amber-950/20 dark:via-orange-950/20 dark:to-indigo-950/20 border border-amber-200/60 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="p-2 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm shadow-amber-500/20">
-              <GitBranch className="w-5 h-5" />
-            </span>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100">
-              {lang === 'ja' ? '錬成ツリー図ダッシュボード' : 'Alchemy Genealogy Tree'}
-            </h1>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+      {/* 見出し */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="p-2 rounded-xl bg-cyan-600 text-white">
+            <GitBranch className="w-5 h-5" />
+          </span>
+          <div>
+            <h1 className="text-xl font-black text-slate-800 dark:text-slate-100">{ja ? '錬成ツリー図' : 'Crafting Tree'}</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {ja
+                ? '作りたい単位を選ぶと、基本単位からの作り方が木の形で出ます。'
+                : 'Pick a unit to see how it is built up from the base units.'}
+            </p>
           </div>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-            {lang === 'ja'
-              ? '錬成ラボで正しく作れた組み合わせが記録され、左の基本単位から右へ「何から何ができたか」を枝分かれで表示します。単位をタップすると詳細が開きます。'
-              : 'Recipes you craft correctly in the Alchemy Lab are recorded and drawn from base units on the left to what they make on the right. Tap a unit for details.'}
-          </p>
         </div>
-
-        {/* Stats Summary Pills */}
-        <div className="flex items-center gap-3">
-          <div className="px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200/80 dark:border-slate-700 shadow-xs text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {lang === 'ja' ? '記録された合成数' : 'Total Syntheses'}
-            </div>
-            <div className="font-serif font-black text-amber-600 dark:text-amber-400 text-lg leading-none">
-              {isSample ? 0 : history.length}
-            </div>
-          </div>
-
-          <div className="px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200/80 dark:border-slate-700 shadow-xs text-center">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {lang === 'ja' ? 'ツリーのノード数' : 'Tree Nodes'}
-            </div>
-            <div className="font-serif font-black text-emerald-600 dark:text-emerald-400 text-lg leading-none">
-              {graphData.nodes.length}
-            </div>
-          </div>
+        <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+          <span className="text-slate-500">{ja ? '作れた単位' : 'Crafted'}</span>{' '}
+          <span className="font-serif font-black text-cyan-700 dark:text-cyan-300 text-base">{craftedCount}</span>
+          <span className="text-slate-400"> / {TARGET_UNITS.length}</span>
         </div>
       </div>
 
-      {/* Main Grid: D3 Tree Visualization Canvas (Left) + Synthesis Log Feed (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: D3 Tree Interactive Canvas (lg:col-span-8) */}
-        <div className="lg:col-span-8 rounded-3xl bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-slate-800 shadow-md p-5 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>{lang === 'ja' ? '錬成ツリー' : 'Crafting tree'}</span>
-              </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-semibold">
-                {graphData.links.length} {lang === 'ja' ? 'リレーション' : 'links'}
-              </span>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* ① 作りたい単位を選ぶ */}
+        <section className="lg:col-span-4 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+            <span className="inline-flex items-center justify-center w-5 h-5 mr-1.5 rounded-full bg-cyan-600 text-white text-[11px]">1</span>
+            {ja ? '作りたい単位を選ぶ' : 'Choose a unit to make'}
+          </h2>
+          <TargetPicker targetId={targetId} crafted={crafted} onPick={pickTarget} lang={lang} />
+        </section>
 
-            {/* Tree Filter & Actions */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
-                <button
-                  onClick={() => {
-                    sounds.playClick();
-                    setFilterType('all');
-                  }}
-                  className={`px-2.5 py-1 font-semibold rounded-lg transition-colors ${
-                    filterType === 'all'
-                      ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-300 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {lang === 'ja' ? 'すべて' : 'All'}
-                </button>
-                <button
-                  onClick={() => {
-                    sounds.playClick();
-                    setFilterType('named');
-                  }}
-                  className={`px-2.5 py-1 font-semibold rounded-lg transition-colors ${
-                    filterType === 'named'
-                      ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-300 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {lang === 'ja' ? '名前付き単位のみ' : 'Named Only'}
-                </button>
-              </div>
+        {/* ② 作り方の木 */}
+        <section className="lg:col-span-8 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+            <span className="inline-flex items-center justify-center w-5 h-5 mr-1.5 rounded-full bg-cyan-600 text-white text-[11px]">2</span>
+            {ja ? '作り方' : 'How to make it'}
+          </h2>
 
-              <button
-                onClick={reloadHistory}
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 text-slate-600 dark:text-slate-300 transition-colors"
-                title="Reload tree"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {isSample && (
-            <div className="text-xs px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-              {lang === 'ja'
-                ? '見本：まだ錬成の記録がないので、例（m/s → m/s² → N → J → W、Pa）を表示しています。錬成ラボで単位を作ると、あなたの記録に置き換わります。'
-                : 'Example: you have no recipes yet, so a sample (m/s → m/s² → N → J → W, Pa) is shown. Craft units in the Alchemy Lab to replace it with your own.'}
-            </div>
-          )}
-
-          {/* D3 Canvas Viewport */}
-          <div
-            ref={containerRef}
-            className="relative w-full h-[520px] rounded-2xl bg-[#F8FAFC] dark:bg-[#070B0E] border border-amber-200/50 dark:border-slate-800 overflow-hidden select-none"
-          >
-            {/* Background Subtle Grid Pattern */}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-30 dark:opacity-10"
-              style={{
-                backgroundImage: 'radial-gradient(#0891B2 1px, transparent 1px)',
-                backgroundSize: '24px 24px',
-              }}
-            />
-
-            <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
-
-            {/* Tree Legend on Canvas */}
-            <div className="absolute bottom-3 left-3 p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-xs border border-slate-200/70 dark:border-slate-700 text-[11px] space-y-1 shadow-xs pointer-events-none">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
-                <span className="text-slate-600 dark:text-slate-300 font-medium">
-                  {lang === 'ja' ? 'SI基本単位 (ルート)' : 'Base Units (Roots)'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
-                <span className="text-slate-600 dark:text-slate-300 font-medium">
-                  {lang === 'ja' ? '発見・命名単位' : 'Discovered Units'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-0.5 bg-amber-500 inline-block" />
-                <span className="text-slate-500 dark:text-slate-400">× {lang === 'ja' ? '掛け算' : 'Multiply'}</span>
-                <span className="w-3 h-0.5 bg-sky-500 border-b border-dashed inline-block ml-1" />
-                <span className="text-slate-500 dark:text-slate-400">÷ {lang === 'ja' ? '割り算' : 'Divide'}</span>
-              </div>
-            </div>
-
-            {/* Hovered Node Mini Card */}
-            {hoveredNode && (
-              <div className="absolute top-3 left-3 p-3 rounded-xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-amber-300 dark:border-slate-600 shadow-md text-xs space-y-1 animate-in fade-in pointer-events-none">
-                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-100">
-                  <span className="font-serif font-black text-amber-600 dark:text-amber-400 text-sm">
-                    {hoveredNode.sym}
-                  </span>
-                  <span>{hoveredNode.name}</span>
+          {!target || !layout ? (
+            <p className="text-sm text-slate-500 py-10 text-center">
+              {ja ? '左のリストから、作りたい単位を選んでください。' : 'Choose a unit from the list.'}
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-serif font-black text-2xl text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(target, lang)}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{uName(target, lang)}</span>
+                    <span className="text-xs text-slate-500">{uQty(target, lang)}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 font-serif">= {formatDimSI(getUnitDim(target), lang)}</div>
                 </div>
-
-                {hoveredNode.unitId && (
-                  <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                    {lang === 'ja' ? '💡 タップで詳細カードを表示' : '💡 Click to inspect unit'}
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      sounds.playPop();
+                      onSelectUnit(target);
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    {ja ? '図鑑' : 'Details'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      sounds.playPop();
+                      onCraftInLab();
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold"
+                  >
+                    <FlaskConical className="w-4 h-4" />
+                    {ja ? 'ラボでこの単位を作る' : 'Make it in the lab'}
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Right: Synthesis History Feed & Recipe Loader (lg:col-span-4) */}
-        <div className="lg:col-span-4 rounded-3xl bg-white dark:bg-slate-900 border border-amber-100 dark:border-slate-800 shadow-sm p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-amber-500" />
-              <span>{lang === 'ja' ? '合成実験ログ' : 'Synthesis Experiment Logs'}</span>
-            </h2>
+              {forms.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-slate-500">{ja ? '作り方：' : 'Recipe:'}</span>
+                  {forms.map((f, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setFormIndex(i)}
+                      aria-pressed={fi === i}
+                      className={`px-2.5 py-1 rounded-lg border font-serif ${
+                        fi === i
+                          ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400'
+                      }`}
+                    >
+                      {uSym(target, lang)} = {formText(f)}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-            <button
-              onClick={handleClearHistory}
-              className="p-1 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
-              title="Reset history"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              <div className="overflow-auto rounded-2xl bg-slate-50 dark:bg-[#070B0E] border border-slate-200 dark:border-slate-800">
+                <svg width={layout.width} height={layout.height} className="block mx-auto" role="img" aria-label={ja ? `${uSym(target, lang)} の作り方の図` : `Recipe tree for ${uSym(target, lang)}`}>
+                  <defs>
+                    <marker id="recipe-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">
+                      <path d="M0,0 L10,5 L0,10 z" fill={isDark ? '#94A3B8' : '#64748B'} />
+                    </marker>
+                  </defs>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {lang === 'ja'
-              ? '「レシピを復元」を押すと、調合フラスコに当時の材料がそのまま再現されます。'
-              : 'Tap "Load Recipe" to restore the ingredients back into the Alchemy Lab kettle.'}
-          </p>
+                  {/* 線：材料（左）→ できる単位（右） */}
+                  {layout.links.map((l, i) => {
+                    const s = layout.pos(l.target); // 材料
+                    const t = layout.pos(l.source); // できる単位
+                    const sw = boxWidth(uSym(l.target.data.unit, lang));
+                    const tw = boxWidth(uSym(l.source.data.unit, lang));
+                    const x1 = s.x + sw / 2 + 2;
+                    const x2 = t.x - tw / 2 - 3;
+                    const mx = (x1 + x2) / 2;
+                    const exp = l.target.data.exp;
+                    const n = Math.abs(exp);
+                    const label = `${exp > 0 ? '×' : '÷'}${n > 1 ? ` ${n}${ja ? '回' : 'x'}` : ''}`;
+                    return (
+                      <g key={i}>
+                        <path
+                          d={`M ${x1} ${s.y} C ${mx} ${s.y}, ${mx} ${t.y}, ${x2} ${t.y}`}
+                          fill="none"
+                          stroke={exp > 0 ? (isDark ? '#22D3EE' : '#0891B2') : isDark ? '#38BDF8' : '#0369A1'}
+                          strokeWidth={1.8}
+                          strokeDasharray={exp > 0 ? undefined : '5 4'}
+                          markerEnd="url(#recipe-arrow)"
+                        />
+                        <g transform={`translate(${x1 + 18}, ${s.y - 9})`}>
+                          <rect x={-13} y={-9} width={n > 1 ? 44 : 26} height={17} rx={8} fill={isDark ? '#0F172A' : 'white'} stroke={isDark ? '#334155' : '#CBD5E1'} />
+                          <text x={n > 1 ? 9 : 0} y={4} textAnchor="middle" fontSize="12" fontWeight="bold" fill={exp > 0 ? '#0891B2' : '#0369A1'}>
+                            {label}
+                          </text>
+                        </g>
+                      </g>
+                    );
+                  })}
 
-          {/* History List */}
-          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-            {filteredHistory.map((rec) => {
-              const u = rec.resultUnitId ? unitsById[rec.resultUnitId] : null;
-              const dateStr = new Date(rec.timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-
-              return (
-                <div
-                  key={rec.id}
-                  className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/80 hover:border-amber-300 transition-all space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-slate-400">{dateStr}</span>
-                    {u ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 flex items-center gap-1">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span>{uName(u, lang)}</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-400">
-                        {lang === 'ja' ? '未知の次元' : 'Composite'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Formula Breakdown equation */}
-                  <div className="flex items-center gap-1.5 flex-wrap font-serif text-sm">
-                    {rec.ingredients.map((ing, iIdx) => {
-                      const ingUnit = unitsById[ing.id];
-                      return (
-                        <React.Fragment key={iIdx}>
-                          {iIdx > 0 && <span className="text-xs text-slate-400">×</span>}
-                          <span
-                            className={`px-1.5 py-0.2 rounded-md font-bold text-xs ${
-                              ing.exp > 0
-                                ? 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300'
-                                : 'bg-sky-100/70 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300'
-                            }`}
-                          >
-                            {ingUnit ? uSym(ingUnit, lang) : ing.id}
-                            {ing.exp !== 1 && (
-                              <sup className="text-[9px] ml-0.5">
-                                {ing.exp < 0 ? `⁻${Math.abs(ing.exp)}` : ing.exp}
-                              </sup>
-                            )}
-                          </span>
-                        </React.Fragment>
-                      );
-                    })}
-
-                    <span className="text-slate-400">➔</span>
-
-                    <span className="font-bold text-amber-600 dark:text-amber-400">
-                      {u ? uSym(u, lang) : rec.resultUnitSym || rec.resultDimSI}
-                    </span>
-                  </div>
-
-                  {/* Card Actions */}
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/50 dark:border-slate-700/60 text-xs">
-                    {u && (
-                      <button
+                  {/* 単位の枠 */}
+                  {layout.nodes.map((n, i) => {
+                    const u = n.data.unit;
+                    const p = layout.pos(n);
+                    const sym = uSym(u, lang);
+                    const w = boxWidth(sym);
+                    const isRoot = n.depth === 0;
+                    const available = isAvailable(u);
+                    const canRetarget = !isRoot && !isStarter(u);
+                    return (
+                      <g
+                        key={i}
+                        transform={`translate(${p.x}, ${p.y})`}
+                        className="cursor-pointer"
                         onClick={() => {
                           sounds.playPop();
-                          onSelectUnit(u);
+                          if (canRetarget) pickTarget(u.id);
+                          else onSelectUnit(u);
                         }}
-                        className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:underline"
                       >
-                        {lang === 'ja' ? '単位詳細' : 'Inspect'}
-                      </button>
-                    )}
+                        <title>
+                          {canRetarget
+                            ? ja ? `${sym} の作り方を見る` : `See how to make ${sym}`
+                            : ja ? `${sym} の詳細を見る` : `Details for ${sym}`}
+                        </title>
+                        <rect
+                          x={-w / 2}
+                          y={-BOX_H / 2}
+                          width={w}
+                          height={BOX_H}
+                          rx={BOX_H / 2}
+                          fill={isDark ? (available ? '#0E2A33' : '#111827') : available ? (u.kind === 'base' ? '#F1F5F9' : '#ECFEFF') : 'white'}
+                          stroke={isRoot ? '#0891B2' : available ? (u.kind === 'base' ? '#475569' : '#06B6D4') : isDark ? '#475569' : '#94A3B8'}
+                          strokeWidth={isRoot ? 3 : u.kind === 'base' ? 2.5 : 1.8}
+                          strokeDasharray={available || isRoot ? undefined : '4 3'}
+                        />
+                        <text
+                          y={6}
+                          textAnchor="middle"
+                          fontFamily="STIX Two Text, Georgia, serif"
+                          fontWeight="bold"
+                          fontSize="17"
+                          fill={available || isRoot ? (isDark ? '#E2E8F0' : '#0F172A') : isDark ? '#64748B' : '#94A3B8'}
+                        >
+                          {sym}
+                        </text>
+                        <text y={BOX_H / 2 + 13} textAnchor="middle" fontSize="10.5" fill={isDark ? '#94A3B8' : '#64748B'}>
+                          {uQty(u, lang).split(/\s*[（(]/)[0].split(/[・,]/)[0]}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
 
-                    {onLoadRecipe && (
-                      <button
-                        onClick={() => {
-                          sounds.playSuccess();
-                          onLoadRecipe(rec.ingredients);
-                        }}
-                        className="text-[11px] font-bold px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-transform active:scale-95 ml-auto"
-                      >
-                        {lang === 'ja' ? '⚗️ レシピを復元' : 'Load Recipe'}
-                      </button>
-                    )}
+              {/* 凡例 */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-6 h-3.5 rounded-full border-[2.5px] border-slate-600 bg-slate-100" />
+                  {ja ? '基本単位・材料' : 'Base unit / ingredient'}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-6 h-3.5 rounded-full border-2 border-cyan-500 bg-cyan-50" />
+                  {ja ? 'ラボで作れた単位' : 'Crafted in the lab'}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-6 h-3.5 rounded-full border-2 border-dashed border-slate-400 bg-white" />
+                  {ja ? 'まだ作っていない単位（タップで作り方へ）' : 'Not crafted yet (tap for its recipe)'}
+                </span>
+                <span>{ja ? '実線 × かける ／ 点線 ÷ わる' : 'Solid × multiply / dashed ÷ divide'}</span>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+
+      {/* ③ 自分の錬成記録 */}
+      <section className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-cyan-600" />
+            {ja ? 'あなたの錬成記録' : 'Your recipes'}
+            <span className="text-xs font-normal text-slate-400">({history.length})</span>
+          </h2>
+          {history.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm(ja ? '錬成の記録を消しますか？' : 'Clear your recipe history?')) {
+                  clearAlchemyHistory();
+                  setHistory(getAlchemyHistory());
+                }
+              }}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {ja ? '記録を消す' : 'Clear'}
+            </button>
+          )}
+        </div>
+        {history.length === 0 ? (
+          <p className="text-xs text-slate-500">
+            {ja ? 'まだ記録はありません。錬成ラボで単位を作ると、ここに並びます。' : 'No recipes yet. Units you make in the lab will appear here.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {history.map((rec) => {
+              const u = rec.resultUnitId ? unitsById[rec.resultUnitId] : null;
+              if (!u) return null;
+              return (
+                <div key={rec.id} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                  <div className="font-serif text-sm min-w-0">
+                    <span className="text-slate-700 dark:text-slate-200">{formText(rec.ingredients.map((i) => [i.id, i.exp] as [string, number]))}</span>
+                    <span className="text-slate-400 mx-1.5">→</span>
+                    <span className="font-bold text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(u, lang)}</span>
                   </div>
+                  {onLoadRecipe && (
+                    <button
+                      onClick={() => {
+                        sounds.playPop();
+                        onLoadRecipe(rec.ingredients);
+                      }}
+                      className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-cyan-400"
+                    >
+                      {ja ? 'フラスコに戻す' : 'Load'}
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
-        </div>
-      </div>
+        )}
+      </section>
     </div>
   );
 };

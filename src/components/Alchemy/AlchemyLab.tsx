@@ -1,17 +1,15 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Sparkles,
   Trash2,
   ArrowUpDown,
   CheckCircle2,
   Search,
-  BookMarked,
-  Award,
-  Plus,
-  RefreshCw,
   GitBranch,
-  Play,
-  Zap,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react';
 import { UnitDefinition } from '../../types/unit';
 import {
@@ -24,12 +22,15 @@ import {
   getUnitFactor,
   sameFactor,
   isCraftable,
+  BASE_ORDER,
 } from '../../data/unitsData';
-import { uSym, uName, uQty, unitSearchText } from '../../utils/i18n';
+import { COMMON_INGREDIENTS, INGREDIENT_GROUPS, addCraftedUnits, getCraftedUnits } from '../../data/crafting';
+import { uSym, uName, uQty, realmName, unitSearchText } from '../../utils/i18n';
 import { sounds } from '../../utils/sound';
 import { saveAlchemyRecord } from '../../utils/alchemyHistory';
 import { SynthesisSuccessModal } from './SynthesisSuccessModal';
 import { FlaskBubblesCanvas } from './FlaskBubblesCanvas';
+import { TargetPicker } from './TargetPicker';
 
 interface AlchemyLabProps {
   onSelectUnit: (unit: UnitDefinition) => void;
@@ -37,44 +38,23 @@ interface AlchemyLabProps {
   initialUnit?: UnitDefinition | null;
   initialSlot?: 'num' | 'den';
   initialRecipe?: Array<{ id: string; exp: number }> | null;
+  targetId: string | null;
+  onChangeTarget: (id: string | null) => void;
   lang: 'ja' | 'en';
 }
 
-interface Quest {
-  id: string;
-  targetId: string;
-  titleJa: string;
-  titleEn: string;
-  hintJa: string;
-  hintEn: string;
-}
-
-const QUESTS: Quest[] = [
-  { id: 'q_N', targetId: 'N', titleJa: '力 (N) を錬成せよ！', titleEn: 'Craft Force (N)', hintJa: '質量 (kg) と 加速度 (m/s²) を掛け合わせよう', hintEn: 'Multiply mass (kg) and acceleration (m/s²)' },
-  { id: 'q_J', targetId: 'J', titleJa: 'エネルギー (J) を作れ！', titleEn: 'Craft Joule (J)', hintJa: '力 (N) × 距離 (m) または 電力 (W) × 時間 (s)', hintEn: 'Force (N) × distance (m) or Power (W) × time (s)' },
-  { id: 'q_W', targetId: 'W', titleJa: '仕事率・電力 (W) を作れ！', titleEn: 'Craft Watt (W)', hintJa: 'エネルギー (J) ÷ 時間 (s) または 電圧 (V) × 電流 (A)', hintEn: 'Energy (J) ÷ time (s) or Voltage (V) × Current (A)' },
-  { id: 'q_Pa', targetId: 'Pa', titleJa: '圧力 (Pa) を錬成せよ！', titleEn: 'Craft Pascal (Pa)', hintJa: '力 (N) ÷ 面積 (m²)', hintEn: 'Force (N) ÷ Area (m²)' },
-  { id: 'q_C', targetId: 'C', titleJa: '電荷 (C) を作れ！', titleEn: 'Craft Coulomb (C)', hintJa: '電流 (A) × 時間 (s)', hintEn: 'Current (A) × time (s)' },
-  { id: 'q_V', targetId: 'V', titleJa: '電圧 (V) を錬成せよ！', titleEn: 'Craft Volt (V)', hintJa: 'エネルギー (J) ÷ 電荷 (C)', hintEn: 'Energy (J) ÷ Charge (C)' },
-  { id: 'q_ohm', targetId: 'ohm', titleJa: '電気抵抗 (Ω) を作れ！', titleEn: 'Craft Ohm (Ω)', hintJa: 'オームの法則: 電圧 (V) ÷ 電流 (A)', hintEn: 'Ohm\'s Law: Voltage (V) ÷ Current (A)' },
-  { id: 'q_F', targetId: 'F', titleJa: '静電容量 (F) を作れ！', titleEn: 'Craft Farad (F)', hintJa: '電荷 (C) ÷ 電圧 (V)', hintEn: 'Charge (C) ÷ Voltage (V)' },
-  { id: 'q_T', targetId: 'T', titleJa: '磁束密度 (T) を作れ！', titleEn: 'Craft Tesla (T)', hintJa: '磁束 (Wb) ÷ 面積 (m²)', hintEn: 'Magnetic flux (Wb) ÷ Area (m²)' },
-  { id: 'q_Wb', targetId: 'Wb', titleJa: '磁束 (Wb) を作れ！', titleEn: 'Craft Weber (Wb)', hintJa: '磁束密度 (T) × 面積 (m²) または 電圧 (V) × 時間 (s)', hintEn: 'Tesla (T) × Area (m²) or Volt (V) × time (s)' },
-  { id: 'q_H', targetId: 'H', titleJa: 'インダクタンス (H) を作れ！', titleEn: 'Craft Henry (H)', hintJa: '磁束 (Wb) ÷ 電流 (A)', hintEn: 'Magnetic flux (Wb) ÷ Current (A)' },
-  { id: 'q_Hz', targetId: 'Hz', titleJa: '振動数 (Hz) を作れ！', titleEn: 'Craft Hertz (Hz)', hintJa: '周期の逆数: 1 ÷ 秒 (s)', hintEn: 'Reciprocal of period: 1 ÷ second (s)' },
-  { id: 'q_mol_L', targetId: 'mol_L', titleJa: 'モル濃度 (mol/L) を作れ！', titleEn: 'Craft Molarity (mol/L)', hintJa: '物質量 (mol) ÷ 体積 (L)', hintEn: 'Amount of substance (mol) ÷ volume (L)' },
-  { id: 'q_kg_m3', targetId: 'kg_m3', titleJa: '密度 (kg/m³) を作れ！', titleEn: 'Craft Density (kg/m³)', hintJa: '質量 (kg) ÷ 体積 (m³)', hintEn: 'Mass (kg) ÷ Volume (m³)' },
-];
-
-// 係数の表示：10 の累乗ならそのまま、そうでなければ有効数字3桁（例：10⁻²、3.60×10⁶）
+// 係数の表示：10 の累乗ならそのまま、そうでなければ有効数字3桁（例：10⁻²、3.60×10³）
 const SUP: Record<string, string> = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+const supNum = (n: number) => String(n).split('').map((c) => SUP[c]).join('');
 const formatFactor = (f: number) => {
   const e = Math.floor(Math.log10(f) + 1e-9);
   const m = f / Math.pow(10, e);
-  const pow = `10${String(e).split('').map((c) => SUP[c]).join('')}`;
+  const pow = `10${supNum(e)}`;
   if (Math.abs(m - 1) < 1e-6) return pow;
   return e === 0 ? m.toPrecision(3) : `${m.toPrecision(3)}×${pow}`;
 };
+
+const COMPLETED_KEY = 'unit_completed_targets';
 
 export const AlchemyLab: React.FC<AlchemyLabProps> = ({
   onSelectUnit,
@@ -82,58 +62,41 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
   initialUnit,
   initialSlot = 'num',
   initialRecipe,
+  targetId,
+  onChangeTarget,
   lang,
 }) => {
-  // Synthesizer Kettle state: unitId -> exponent (+ for num, - for den)
+  const ja = lang === 'ja';
+  // フラスコの中身：単位id → 指数（+ は分子、- は分母）
   const [expr, setExpr] = useState<Record<string, number>>({});
-  const [activeSlot, setActiveSlot] = useState<'num' | 'den'>('num');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedQuestId, setSelectedQuestId] = useState<string | null>('q_N');
-  const [completedQuests, setCompletedQuests] = useState<Set<string>>(() => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [paletteTab, setPaletteTab] = useState<string>('common');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(true);
+  const [crafted, setCrafted] = useState<Set<string>>(() => getCraftedUnits());
+  const [completedTargets, setCompletedTargets] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('unit_completed_quests');
-      return saved ? new Set(JSON.parse(saved)) : new Set<string>();
+      const saved = localStorage.getItem(COMPLETED_KEY);
+      return new Set(saved ? (JSON.parse(saved) as string[]) : []);
     } catch {
-      return new Set<string>();
+      return new Set();
     }
   });
+  const [successCelebration, setSuccessCelebration] = useState<{ unit: UnitDefinition; formulaDesc: string } | null>(null);
 
-  // Track discovered units recipe book
-  const [discoveredUnits, setDiscoveredUnits] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('unit_discovered_alchemy');
-      return saved ? new Set(JSON.parse(saved)) : new Set<string>();
-    } catch {
-      return new Set<string>();
-    }
-  });
-
-  // Celebratory Synthesis Success Modal state
-  const [successCelebration, setSuccessCelebration] = useState<{
-    unit: UnitDefinition;
-    formulaDesc: string;
-  } | null>(null);
-
-  // Handle external initial unit insertion or full recipe loading
+  // 図鑑やツリー図から材料・レシピを受け取る
   useEffect(() => {
     if (initialRecipe && initialRecipe.length > 0) {
-      const newExpr: Record<string, number> = {};
-      initialRecipe.forEach((ing) => {
-        newExpr[ing.id] = (newExpr[ing.id] || 0) + ing.exp;
-      });
-      setExpr(newExpr);
+      const next: Record<string, number> = {};
+      initialRecipe.forEach((ing) => (next[ing.id] = (next[ing.id] || 0) + ing.exp));
+      setExpr(next);
     } else if (initialUnit) {
-      setExpr((prev) => ({
-        ...prev,
-        [initialUnit.id]: (prev[initialUnit.id] || 0) + (initialSlot === 'num' ? 1 : -1),
-      }));
+      setExpr((prev) => ({ ...prev, [initialUnit.id]: (prev[initialUnit.id] || 0) + (initialSlot === 'num' ? 1 : -1) }));
     }
   }, [initialUnit, initialSlot, initialRecipe]);
 
-  // Add unit piece into synthesizer
-  const handleAddPiece = (id: string) => {
-    sounds.playPop(540);
-    const sign = activeSlot === 'num' ? 1 : -1;
+  const addPiece = (id: string, sign: 1 | -1) => {
+    sounds.playPop(sign > 0 ? 540 : 440);
     setExpr((prev) => {
       const next = { ...prev };
       next[id] = (next[id] || 0) + sign;
@@ -141,8 +104,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
       return next;
     });
   };
-
-  const handleRemovePiece = (id: string) => {
+  const removePiece = (id: string) => {
     sounds.playClick();
     setExpr((prev) => {
       const next = { ...prev };
@@ -150,649 +112,500 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
       return next;
     });
   };
-
-  const handleFlipPiece = (id: string) => {
+  const flipPiece = (id: string) => {
     sounds.playClick();
-    setExpr((prev) => {
-      const next = { ...prev };
-      if (next[id]) next[id] = -next[id];
-      return next;
-    });
+    setExpr((prev) => ({ ...prev, [id]: -prev[id] }));
   };
-
-  const handleClearKettle = () => {
-    sounds.playBonk();
+  const clearFlask = () => {
+    sounds.playClick();
     setExpr({});
   };
 
-  // Calculate live combined SI dimensions of kettle
+  // ===== 計算 =====
+  const entries = Object.entries(expr);
+  const hasItems = entries.length > 0;
   const currentDim = useMemo(() => {
     const dim: Record<string, number> = {};
-    for (const [id, exp] of Object.entries(expr)) {
-      const u = unitsById[id];
-      if (u) {
-        const uDim = getUnitDim(u);
-        for (const k in uDim) {
-          dim[k] = (dim[k] || 0) + uDim[k] * exp;
-          if (dim[k] === 0) delete dim[k];
-        }
+    for (const [id, exp] of entries) {
+      const d = getUnitDim(unitsById[id]);
+      for (const k in d) {
+        dim[k] = (dim[k] || 0) + d[k] * exp;
+        if (dim[k] === 0) delete dim[k];
       }
     }
     return dim;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expr]);
-
-  const hasItems = Object.keys(expr).length > 0;
+  const currentFactor = useMemo(
+    () => entries.reduce((f, [id, exp]) => f * Math.pow(getUnitFactor(unitsById[id]), exp), 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expr]
+  );
   const currentDimKey = getDimKey(currentDim);
+  // 「材料を1つそのまま入れただけ」ではないか（1/s → Hz、m² は錬成に数える）
+  const isRealCraft = !(entries.length === 1 && entries[0][1] === 1);
 
-  // 係数（g と kg のように次元が同じでも大きさが違う）も含めて計算する
-  const currentFactor = useMemo(() => {
-    let f = 1;
-    for (const [id, exp] of Object.entries(expr)) {
-      const u = unitsById[id];
-      if (u) f *= Math.pow(getUnitFactor(u), exp);
-    }
-    return f;
-  }, [expr]);
-
-  // 「材料を1つそのまま入れただけ」ではないか（1/s → Hz のような逆数や、m² のような2乗は錬成に数える）
-  const exprEntries = Object.entries(expr);
-  const isRealCraft = !(exprEntries.length === 1 && exprEntries[0][1] === 1);
-
-  // 次元も係数も一致し、かけ算・わり算で作れる単位だけを「できた単位」とする
+  // 次元も係数も一致し、かけ算・わり算で作れる単位
   const matchedUnits = useMemo(() => {
     if (!hasItems) return [];
-    const keys = Object.keys(expr);
-    const isSingleSelf = keys.length === 1 && expr[keys[0]] === 1;
     return RAW_UNITS.filter(
       (u) =>
         isCraftable(u) &&
         getDimKey(getUnitDim(u)) === currentDimKey &&
         sameFactor(getUnitFactor(u), currentFactor) &&
-        !(isSingleSelf && u.id === keys[0])
+        !(entries.length === 1 && expr[u.id] === 1)
     );
-  }, [hasItems, expr, currentDimKey, currentFactor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expr, currentDimKey, currentFactor]);
 
-  // 次元は同じだが係数が違う単位（例：kg に対する g、m に対する cm）
+  // 次元は同じだが係数が違う単位（kg に対する g など）
   const sameDimOtherFactor = useMemo(() => {
     if (!hasItems) return [];
     return RAW_UNITS.filter(
       (u) =>
         u.kind !== 'scale' &&
-        !(expr[u.id] === 1 && Object.keys(expr).length === 1) &&
+        !(entries.length === 1 && expr[u.id] === 1) &&
         getDimKey(getUnitDim(u)) === currentDimKey &&
         !sameFactor(getUnitFactor(u), currentFactor)
     );
-  }, [hasItems, expr, currentDimKey, currentFactor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expr, currentDimKey, currentFactor]);
 
-  // Check if current quest is satisfied
-  const activeQuest = selectedQuestId ? QUESTS.find((q) => q.id === selectedQuestId) : null;
-  const isQuestCompleted = useMemo(() => {
-    if (!activeQuest || !hasItems) return false;
-    return matchedUnits.some((u) => u.id === activeQuest.targetId);
-  }, [activeQuest, hasItems, matchedUnits]);
+  const target = targetId ? unitsById[targetId] : null;
+  const targetDim = target ? getUnitDim(target) : null;
+  const targetDone = !!target && matchedUnits.some((u) => u.id === target.id);
 
-  // 式の表示：分子・分母に分けて書く（例：kg·m / s²）
-  const getFormulaDesc = useCallback(() => {
-    const fmt = (entries: Array<[string, number]>) =>
-      entries
+  // 目標まであと何が足りないか（基本単位ごとの指数の差）
+  const hints = useMemo(() => {
+    if (!targetDim) return [];
+    return BASE_ORDER.filter((k) => (targetDim[k] || 0) !== 0 || (currentDim[k] || 0) !== 0).map((k) => ({
+      base: k,
+      diff: (targetDim[k] || 0) - (currentDim[k] || 0),
+    }));
+  }, [targetDim, currentDim]);
+  const dimOk = !!target && hints.every((h) => h.diff === 0);
+
+  // 式の表示（例：kg·m / s²）
+  const formulaDesc = useCallback(() => {
+    const fmt = (list: Array<[string, number]>) =>
+      list
         .map(([id, e]) => {
-          const u = unitsById[id];
-          const sy = u ? uSym(u, lang) : id;
           const n = Math.abs(e);
-          return n === 1 ? sy : `${sy}${n === 2 ? '²' : n === 3 ? '³' : `^${n}`}`;
+          return `${uSym(unitsById[id], lang)}${n === 1 ? '' : supNum(n)}`;
         })
         .join('·');
-    const entries = Object.entries(expr);
     const num = entries.filter(([, e]) => e > 0);
     const den = entries.filter(([, e]) => e < 0);
     const top = num.length ? fmt(num) : '1';
     return den.length ? `${top} / ${den.length > 1 ? `(${fmt(den)})` : fmt(den)}` : top;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expr, lang]);
 
-  // 演出はお題の達成時（初回）と、ボタンを押したときだけ
-  const handleTriggerCelebration = useCallback(
-    (targetUnit?: UnitDefinition) => {
-      const unitToCelebrate = targetUnit || (matchedUnits.length > 0 ? matchedUnits[0] : null);
-      if (!unitToCelebrate) return;
-      setSuccessCelebration({
-        unit: unitToCelebrate,
-        formulaDesc: getFormulaDesc(),
-      });
-    },
-    [matchedUnits, getFormulaDesc]
-  );
-
+  // 目標を初めて達成したときだけ演出する
   useEffect(() => {
-    if (isQuestCompleted && activeQuest && !completedQuests.has(activeQuest.id)) {
-      setCompletedQuests((prev) => {
-        const next = new Set(prev).add(activeQuest.id);
-        try {
-          localStorage.setItem('unit_completed_quests', JSON.stringify(Array.from(next)));
-        } catch {}
-        return next;
-      });
-      const target = unitsById[activeQuest.targetId];
-      if (target) {
-        setSuccessCelebration({ unit: target, formulaDesc: getFormulaDesc() });
-      }
-    }
-  }, [isQuestCompleted, activeQuest, completedQuests, getFormulaDesc]);
+    if (!target || !targetDone || !isRealCraft || completedTargets.has(target.id)) return;
+    setCompletedTargets((prev) => {
+      const next = new Set(prev).add(target.id);
+      try {
+        localStorage.setItem(COMPLETED_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+    setSuccessCelebration({ unit: target, formulaDesc: formulaDesc() });
+  }, [target, targetDone, isRealCraft, completedTargets, formulaDesc]);
 
-  // 正しくできた組み合わせだけを図鑑とツリー図に記録する
+  // 正しくできた組み合わせを記録する（ツリー図に色がつく）
   useEffect(() => {
     if (matchedUnits.length === 0 || !isRealCraft) return;
-    const primaryMatch = matchedUnits[0];
-
-    setDiscoveredUnits((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      matchedUnits.forEach((u) => {
-        if (!next.has(u.id)) {
-          next.add(u.id);
-          changed = true;
-        }
-      });
-      if (changed) {
-        try {
-          localStorage.setItem('unit_discovered_alchemy', JSON.stringify(Array.from(next)));
-        } catch {}
-      }
-      return changed ? next : prev;
-    });
-
-    const ingredients = Object.entries(expr).map(([id, exp]) => ({ id, exp }));
+    setCrafted(addCraftedUnits(matchedUnits.map((u) => u.id)));
+    const primary = target && matchedUnits.some((u) => u.id === target.id) ? target : matchedUnits[0];
     saveAlchemyRecord({
-      ingredients,
+      ingredients: entries.map(([id, exp]) => ({ id, exp })),
       resultDimSI: formatDimSI(currentDim, 'ja'),
       resultDimKey: currentDimKey,
-      resultUnitId: primaryMatch.id,
-      resultUnitName: primaryMatch.name,
-      resultUnitSym: primaryMatch.sym,
+      resultUnitId: primary.id,
+      resultUnitName: primary.name,
+      resultUnitSym: primary.sym,
     });
-  }, [matchedUnits, expr, currentDim, currentDimKey, isRealCraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedUnits, isRealCraft]);
 
-  // Filter palette units
-  const filteredPalette = useMemo(() => {
+  // ===== 材料パレット =====
+  const paletteUnits = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return RAW_UNITS.filter((u) => u.kind !== 'scale' && (!q || unitSearchText(u).includes(q)));
-  }, [searchQuery]);
+    if (q) return RAW_UNITS.filter((u) => u.kind !== 'scale' && unitSearchText(u).includes(q));
+    if (paletteTab === 'common') return COMMON_INGREDIENTS.map((id) => unitsById[id]).filter(Boolean);
+    return INGREDIENT_GROUPS.find((g) => g.realm.id === paletteTab)?.units || [];
+  }, [searchQuery, paletteTab]);
 
-  const numItems = Object.entries(expr).filter(([, e]) => e > 0);
-  const denItems = Object.entries(expr).filter(([, e]) => e < 0);
+  const numItems = entries.filter(([, e]) => e > 0);
+  const denItems = entries.filter(([, e]) => e < 0);
+
+  const hintText = (h: { base: string; diff: number }) => {
+    const n = Math.abs(h.diff);
+    if (h.diff === 0) return '✓';
+    if (ja) return h.diff > 0 ? `あと${n}回かける` : `あと${n}回わる`;
+    return h.diff > 0 ? `multiply ${n} more` : `divide ${n} more`;
+  };
+
+  const piece = ([id, e]: [string, number]) => {
+    const u = unitsById[id];
+    const n = Math.abs(e);
+    return (
+      <span
+        key={id}
+        className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-2xs"
+      >
+        <span className="font-serif font-bold text-base whitespace-nowrap">
+          {uSym(u, lang)}
+          {n > 1 && <sup>{n}</sup>}
+        </span>
+        <button
+          onClick={() => flipPiece(id)}
+          className="p-1 rounded-md text-slate-400 hover:text-cyan-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+          title={ja ? '分子と分母を入れかえる' : 'Move to the other side'}
+          aria-label={ja ? `${uSym(u, lang)} を反対側へ` : `Move ${uSym(u, lang)} to the other side`}
+        >
+          <ArrowUpDown className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => removePiece(id)}
+          className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+          title={ja ? '取り出す' : 'Remove'}
+          aria-label={ja ? `${uSym(u, lang)} を取り出す` : `Remove ${uSym(u, lang)}`}
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </span>
+    );
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Hero Title */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-indigo-500/10 dark:from-amber-950/20 dark:via-orange-950/20 dark:to-indigo-950/20 border border-amber-200/60 dark:border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-xl bg-amber-500 text-white shadow-xs">
-              <Sparkles className="w-5 h-5" />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-5 pb-[50vh] lg:pb-6">
+      {/* ===== 1. 目標 ===== */}
+      <section className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="p-2 rounded-xl bg-cyan-600 text-white shrink-0">
+              <Target className="w-5 h-5" />
             </span>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100">
-              {lang === 'ja' ? '単位錬成ラボ (Alchemy Lab)' : 'Unit Crafter & Alchemy Lab'}
-            </h1>
+            {target ? (
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{ja ? '目標' : 'Target'}</div>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-serif font-black text-2xl text-cyan-700 dark:text-cyan-300 whitespace-nowrap">
+                    {uSym(target, lang)}
+                  </span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{uName(target, lang)}</span>
+                  <span className="text-xs text-slate-500">{uQty(target, lang)}</span>
+                  {completedTargets.has(target.id) && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-serif">
+                  = {formatDimSI(getUnitDim(target), lang)}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="font-bold text-slate-800 dark:text-slate-100">{ja ? '目標なし（自由に錬成）' : 'No target (free play)'}</div>
+                <div className="text-xs text-slate-500">
+                  {ja ? '単位をかけたりわったりして、何ができるか試してみよう。' : 'Multiply and divide units to see what you can make.'}
+                </div>
+              </div>
+            )}
           </div>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-            {lang === 'ja'
-              ? '単位を掛けたり割ったりして、新しい単位を合成しよう！お題クエストに挑戦して星を集めよう。'
-              : 'Combine units by multiplying and dividing to discover derived units and complete challenges!'}
-          </p>
-        </div>
-
-        {/* Actions: View Tree Dashboard & Quest Stars Tally */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {onOpenTree && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                sounds.playPop(560);
-                onOpenTree();
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-slate-750 border border-amber-300 dark:border-slate-700 shadow-sm text-slate-800 dark:text-slate-100 text-xs font-bold transition-all hover:scale-102 active:scale-98"
+              onClick={() => setPickerOpen(!pickerOpen)}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-cyan-300 dark:border-cyan-800 text-cyan-800 dark:text-cyan-200 text-xs font-bold hover:bg-cyan-50 dark:hover:bg-slate-800"
             >
-              <GitBranch className="w-4 h-4 text-amber-500" />
-              <span>{lang === 'ja' ? '🌳 錬成ツリー図を見る' : 'View Alchemy Tree'}</span>
+              {pickerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {ja ? '目標を変える' : 'Change target'}
             </button>
-          )}
-
-          <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-amber-200/80 dark:border-slate-700">
-            <Award className="w-5 h-5 text-amber-500" />
-            <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                {lang === 'ja' ? 'クエスト達成' : 'Quests Cleared'}
-              </div>
-              <div className="font-serif font-black text-amber-600 dark:text-amber-400 text-base leading-none">
-                {completedQuests.size} / {QUESTS.length}
-              </div>
-            </div>
+            {onOpenTree && target && (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenTree();
+                }}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                <GitBranch className="w-4 h-4" />
+                {ja ? '作り方の図を見る' : 'See the recipe'}
+              </button>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Main Two-Zone Studio Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Palette of Ingredients (lg:col-span-5) */}
-        <div className="lg:col-span-5 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-amber-100 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-              <span>{lang === 'ja' ? '単位パレット (材料)' : 'Unit Palette'}</span>
-              <span className="text-xs text-slate-400 font-normal">({filteredPalette.length})</span>
-            </h2>
-
-            {/* Quick Search */}
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs">
-              <Search className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={lang === 'ja' ? '単位名・記号で絞り込み' : 'Filter units...'}
-                className="w-28 sm:w-36 bg-transparent outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 text-xs"
-              />
-            </div>
+        {pickerOpen && (
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+            <TargetPicker
+              targetId={targetId}
+              crafted={completedTargets}
+              lang={lang}
+              allowNone
+              onPick={(id) => {
+                onChangeTarget(id);
+                setPickerOpen(false);
+              }}
+            />
           </div>
+        )}
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {lang === 'ja'
-              ? 'タップすると現在選択中の「分子」または「分母」に入ります。同じ単位を2回押すと2乗になります。'
-              : 'Tap to add to the active slot (Top or Bottom). Tap again to square it.'}
-          </p>
-
-          {/* Palette Grid */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[480px] overflow-y-auto pr-1">
-            {filteredPalette.map((u) => {
-              const inKettle = expr[u.id];
-              return (
-                <button
-                  key={u.id}
-                  onClick={() => handleAddPiece(u.id)}
-                  className={`relative p-2.5 rounded-2xl border text-left transition-all hover:scale-103 active:scale-95 flex flex-col justify-between min-h-[64px] ${
-                    inKettle
-                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-600 shadow-2xs'
-                      : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-amber-300'
+        {/* あと何が足りないか */}
+        {target && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 mr-1">{ja ? 'ヒント：' : 'Hint:'}</span>
+            {!hasItems ? (
+              <span className="text-slate-500">{ja ? '材料を入れると、目標まであと何が足りないかが出ます。' : 'Add ingredients to see what is still missing.'}</span>
+            ) : targetDone ? (
+              <span className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                {ja ? `できた！ ${uSym(target, lang)} になりました` : `Done! This is ${uSym(target, lang)}`}
+              </span>
+            ) : dimOk ? (
+              <span className="px-2 py-1 rounded-lg bg-yellow-50 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300">
+                {ja ? '次元は合っていますが、係数（大きさ）がちがいます。g ではなく kg のように、SIの単位を使ってみよう。' : 'The dimensions match but the size (factor) differs. Try SI units, e.g. kg instead of g.'}
+              </span>
+            ) : (
+              hints.map((h) => (
+                <span
+                  key={h.base}
+                  className={`px-2 py-1 rounded-lg border ${
+                    h.diff === 0
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-serif font-bold text-base text-slate-800 dark:text-slate-100">
-                      {uSym(u, lang)}
-                    </span>
-                    {inKettle && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500 text-white leading-none">
-                        {inKettle > 0 ? `×${inKettle}` : `÷${Math.abs(inKettle)}`}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-1">
-                    {uQty(u, lang)}
-                  </span>
+                  <span className="font-serif font-bold">{h.base}</span> {hintText(h)}
+                </span>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* ===== 2. フラスコ（分数の形） ===== */}
+        <section className="lg:col-span-7 lg:order-2 relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <FlaskBubblesCanvas hasItems={hasItems} hasMatch={matchedUnits.length > 0} />
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">⚗️ {ja ? 'フラスコ' : 'Flask'}</h2>
+              {hasItems && (
+                <button
+                  onClick={clearFlask}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {ja ? '空にする' : 'Empty'}
                 </button>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3">
+              <div className="min-h-[44px] flex flex-wrap items-center justify-center gap-1.5">
+                {numItems.length ? (
+                  numItems.map(piece)
+                ) : denItems.length ? (
+                  <span className="font-serif font-bold text-xl text-slate-500">1</span>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    {ja ? '材料の「× かける」で、ここ（分子）に入ります' : '“× multiply” puts a unit here (top)'}
+                  </span>
+                )}
+              </div>
+              <div className="h-0.5 bg-slate-700 dark:bg-slate-300 my-2 rounded-full" />
+              <div className="min-h-[44px] flex flex-wrap items-center justify-center gap-1.5">
+                {denItems.length ? (
+                  denItems.map(piece)
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    {ja ? '「÷ わる」で、ここ（分母）に入ります' : '“÷ divide” puts a unit here (bottom)'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 結果 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span>{ja ? 'SI基本単位で書くと' : 'In SI base units'}</span>
+                {hasItems && <span className="font-mono">{formatDimBrackets(currentDim)}</span>}
+              </div>
+              <div className="font-serif font-bold text-xl sm:text-2xl text-slate-800 dark:text-slate-100">
+                {hasItems
+                  ? `${sameFactor(currentFactor, 1) ? '' : `${formatFactor(currentFactor)} × `}${formatDimSI(currentDim, lang)}`
+                  : '—'}
+              </div>
+
+              {matchedUnits.length > 0 && isRealCraft && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="text-xs font-bold text-cyan-700 dark:text-cyan-300 mb-1.5">
+                    {ja ? 'この組み合わせでできる単位' : 'You have made'}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {matchedUnits.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`flex items-center gap-2 pl-3 pr-1 py-1 rounded-2xl border-2 bg-white dark:bg-slate-800 ${
+                          target?.id === m.id ? 'border-emerald-500' : 'border-cyan-400'
+                        }`}
+                      >
+                        <span className="font-serif font-black text-lg text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(m, lang)}</span>
+                        <span className="text-xs">
+                          <span className="font-bold text-slate-800 dark:text-slate-100 block leading-tight">{uName(m, lang)}</span>
+                          <span className="text-[10px] text-slate-500">{uQty(m, lang)}</span>
+                        </span>
+                        <button
+                          onClick={() => setSuccessCelebration({ unit: m, formulaDesc: formulaDesc() })}
+                          className="p-1.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300"
+                          title={ja ? '錬成する' : 'Craft it'}
+                        >
+                          <Sparkles className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            sounds.playPop();
+                            onSelectUnit(m);
+                          }}
+                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs"
+                          title={ja ? '図鑑で見る' : 'Details'}
+                        >
+                          📖
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {sameDimOtherFactor.length > 0 && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+                  <div className="font-bold mb-1">{ja ? '次元は同じでも、係数（大きさ）がちがう単位' : 'Same dimensions, different size (factor)'}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sameDimOtherFactor.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => onSelectUnit(u)}
+                        className="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-cyan-400"
+                      >
+                        <span className="font-serif font-bold">{uSym(u, lang)}</span>
+                        <span className="text-[10px] text-slate-500 ml-1">{uQty(u, lang)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ===== 3. 材料（スマホでは画面下から引き出すパネル） ===== */}
+        <section
+          className={`lg:col-span-5 lg:order-1 fixed lg:static inset-x-0 bottom-0 z-30 lg:z-auto bg-white dark:bg-slate-900 border-t lg:border border-slate-200 dark:border-slate-800 rounded-t-3xl lg:rounded-3xl shadow-[0_-8px_24px_rgba(15,23,42,0.12)] lg:shadow-sm p-3 sm:p-4 flex flex-col ${
+            sheetOpen ? 'max-h-[48vh]' : 'max-h-[5.5rem]'
+          } lg:max-h-none overflow-hidden`}
+        >
+          <button
+            onClick={() => setSheetOpen(!sheetOpen)}
+            className="lg:hidden shrink-0 flex items-center justify-center gap-1 -mt-1 mb-1 text-xs font-bold text-slate-500"
+          >
+            {sheetOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            {ja ? '材料' : 'Ingredients'}
+          </button>
+          {/* スマホ：フラスコが隠れても中身がわかるよう、1行で表示する */}
+          <div className="lg:hidden shrink-0 flex items-center gap-2 mb-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+            <span className="text-slate-500 shrink-0">⚗️</span>
+            <span className="font-serif font-bold text-slate-800 dark:text-slate-100 truncate">
+              {hasItems ? formulaDesc() : ja ? '空のフラスコ' : 'Empty flask'}
+            </span>
+            {hasItems && (
+              <>
+                <span className="text-slate-400 shrink-0">=</span>
+                <span className="font-serif text-slate-600 dark:text-slate-300 truncate">{formatDimSI(currentDim, lang)}</span>
+              </>
+            )}
+            {targetDone && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 ml-auto" />}
+          </div>
+          <div className="hidden lg:flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">{ja ? '材料' : 'Ingredients'}</h2>
+          </div>
+
+          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm mb-2">
+            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={ja ? '材料をさがす（例：m、時間、ボルト）' : 'Find an ingredient (e.g. m, time, volt)'}
+              className="flex-1 min-w-0 bg-transparent outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+            />
+          </div>
+
+          {!searchQuery.trim() && (
+            <div className="shrink-0 flex gap-1 overflow-x-auto scrollbar-none pb-2 -mx-1 px-1" role="tablist">
+              {[{ id: 'common', label: ja ? '⭐ よく使う' : '⭐ Common' }, ...INGREDIENT_GROUPS.map((g) => ({ id: g.realm.id, label: `${g.realm.icon} ${realmName(g.realm, lang)}` }))].map((t) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={paletteTab === t.id}
+                  onClick={() => setPaletteTab(t.id)}
+                  className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap ${
+                    paletteTab === t.id
+                      ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2 overflow-y-auto pr-1 flex-1 min-h-0 lg:max-h-[560px]">
+            {paletteUnits.map((u) => {
+              const count = expr[u.id];
+              return (
+                <div
+                  key={u.id}
+                  className={`rounded-2xl border p-2 flex flex-col gap-1.5 ${
+                    count
+                      ? 'bg-cyan-50 dark:bg-cyan-950/40 border-cyan-400 dark:border-cyan-700'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <button onClick={() => onSelectUnit(u)} className="text-left min-w-0" title={ja ? '図鑑で見る' : 'Details'}>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-serif font-bold text-base text-slate-800 dark:text-slate-100 whitespace-nowrap">{uSym(u, lang)}</span>
+                      {count ? (
+                        <span className="text-[10px] font-bold px-1.5 rounded-full bg-cyan-600 text-white">
+                          {count > 0 ? `×${count}` : `÷${-count}`}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{uQty(u, lang)}</div>
+                  </button>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      onClick={() => addPiece(u.id, 1)}
+                      className="py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-100 hover:border-cyan-500 hover:text-cyan-700"
+                      aria-label={ja ? `${uSym(u, lang)} をかける` : `Multiply by ${uSym(u, lang)}`}
+                    >
+                      × {ja ? 'かける' : 'mult.'}
+                    </button>
+                    <button
+                      onClick={() => addPiece(u.id, -1)}
+                      className="py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-100 hover:border-sky-500 hover:text-sky-700"
+                      aria-label={ja ? `${uSym(u, lang)} でわる` : `Divide by ${uSym(u, lang)}`}
+                    >
+                      ÷ {ja ? 'わる' : 'div.'}
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
-        </div>
-
-        {/* Right Column: Synthesizer Kettle & Quests (lg:col-span-7) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Synthesizer Flask Workstation */}
-          <div className="relative overflow-hidden p-6 rounded-3xl bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-slate-800 shadow-md space-y-5">
-            {/* Background Canvas: Rising Alchemy bubbles & glow */}
-            <FlaskBubblesCanvas hasItems={hasItems} hasMatch={matchedUnits.length > 0} />
-
-            <div className="relative z-10 space-y-5">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                  <span>⚗️ {lang === 'ja' ? '調合フラスコ (Synthesizer)' : 'Mixing Flask'}</span>
-                </h2>
-
-                <div className="flex items-center gap-2">
-                  {/* Active Slot Selector */}
-                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <button
-                      onClick={() => {
-                        sounds.playClick();
-                        setActiveSlot('num');
-                      }}
-                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                        activeSlot === 'num'
-                          ? 'bg-amber-500 text-white shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                      }`}
-                    >
-                      {lang === 'ja' ? '× かける (分子)' : '× Multiply (Top)'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        sounds.playClick();
-                        setActiveSlot('den');
-                      }}
-                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                        activeSlot === 'den'
-                          ? 'bg-amber-500 text-white shadow-2xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                      }`}
-                    >
-                      {lang === 'ja' ? '÷ わる (分母)' : '÷ Divide (Bottom)'}
-                    </button>
-                  </div>
-
-                  {/* Clear Button */}
-                  {hasItems && (
-                    <button
-                      onClick={handleClearKettle}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                      title={lang === 'ja' ? 'フラスコをリセット' : 'Clear flask'}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Visual Fraction Workstation */}
-              <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-slate-800/50 border border-amber-200/60 dark:border-slate-700 space-y-3 backdrop-blur-2xs">
-                {/* Numerator Slot */}
-                <div
-                  onClick={() => setActiveSlot('num')}
-                  className={`p-3 rounded-2xl min-h-[52px] flex items-center gap-2 flex-wrap transition-all cursor-pointer ${
-                    activeSlot === 'num'
-                      ? 'bg-white dark:bg-slate-800 ring-2 ring-amber-400 shadow-xs'
-                      : 'bg-white/70 dark:bg-slate-800/70 hover:bg-white'
-                  }`}
-                >
-                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-100/60 dark:bg-amber-950/40 shrink-0">
-                    {lang === 'ja' ? '分子 (×)' : 'Top (×)'}
-                  </span>
-
-                  {numItems.length > 0 ? (
-                    numItems.map(([id, exp]) => {
-                      const u = unitsById[id];
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-100/80 dark:bg-slate-700 border border-amber-300/80 dark:border-slate-600 font-serif font-bold text-sm text-slate-800 dark:text-slate-100 animate-in fade-in"
-                        >
-                          <span>{u ? uSym(u, lang) : id}</span>
-                          {exp > 1 && <sup className="text-xs text-amber-700">{exp}</sup>}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleFlipPiece(id);
-                            }}
-                            className="text-slate-400 hover:text-amber-600 p-0.5"
-                            title="Flip"
-                          >
-                            <ArrowUpDown className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemovePiece(id);
-                            }}
-                            className="text-slate-400 hover:text-rose-500 p-0.5"
-                            title="Remove"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <span className="text-xs text-slate-400">
-                      {lang === 'ja' ? 'パレットから単位を選んで追加' : 'Select units from palette to multiply'}
-                    </span>
-                  )}
-                </div>
-
-                {/* Fraction Divider Bar */}
-                <div className="h-0.5 bg-amber-300 dark:bg-slate-700 rounded-full w-full" />
-
-                {/* Denominator Slot */}
-                <div
-                  onClick={() => setActiveSlot('den')}
-                  className={`p-3 rounded-2xl min-h-[52px] flex items-center gap-2 flex-wrap transition-all cursor-pointer ${
-                    activeSlot === 'den'
-                      ? 'bg-white dark:bg-slate-800 ring-2 ring-amber-400 shadow-xs'
-                      : 'bg-white/70 dark:bg-slate-800/70 hover:bg-white'
-                  }`}
-                >
-                  <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-100/60 dark:bg-sky-950/40 shrink-0">
-                    {lang === 'ja' ? '分母 (÷)' : 'Bottom (÷)'}
-                  </span>
-
-                  {denItems.length > 0 ? (
-                    denItems.map(([id, exp]) => {
-                      const u = unitsById[id];
-                      const absExp = Math.abs(exp);
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-100/80 dark:bg-slate-700 border border-sky-300/80 dark:border-slate-600 font-serif font-bold text-sm text-slate-800 dark:text-slate-100 animate-in fade-in"
-                        >
-                          <span>{u ? uSym(u, lang) : id}</span>
-                          {absExp > 1 && <sup className="text-xs text-sky-700">{absExp}</sup>}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleFlipPiece(id);
-                            }}
-                            className="text-slate-400 hover:text-sky-600 p-0.5"
-                            title="Flip"
-                          >
-                            <ArrowUpDown className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemovePiece(id);
-                            }}
-                            className="text-slate-400 hover:text-rose-500 p-0.5"
-                            title="Remove"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <span className="text-xs text-slate-400">
-                      {lang === 'ja' ? '割りたい単位があればここに投入' : 'Select units from palette to divide by'}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Live Synthesis Reaction Banner */}
-              <div
-                className={`relative p-4 sm:p-5 rounded-2xl border transition-all overflow-hidden ${
-                  matchedUnits.length > 0
-                    ? 'bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-yellow-500/15 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-yellow-950/40 border-amber-400 dark:border-amber-500/60 shadow-md shadow-amber-500/10 ring-1 ring-amber-400/50'
-                    : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700'
-                }`}
-              >
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    {matchedUnits.length > 0 && (
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    )}
-                    <span>{lang === 'ja' ? '現在の調合結果 (SI基本単位)' : 'Synthesis Result in SI'}</span>
-                  </span>
-                  {hasItems && (
-                    <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                      {formatDimBrackets(currentDim)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between gap-3 flex-wrap my-1.5">
-                  <div className="font-serif font-bold text-xl sm:text-2xl text-slate-800 dark:text-slate-100">
-                    {hasItems
-                      ? `${sameFactor(currentFactor, 1) ? '' : `${formatFactor(currentFactor)} × `}${formatDimSI(currentDim, lang)}`
-                      : lang === 'ja'
-                      ? '—（空のフラスコ）'
-                      : '— (empty flask)'}
-                  </div>
-
-                  {/* Big Pop "Play Synthesis Effect" Action Button */}
-                  {matchedUnits.length > 0 && (
-                    <button
-                      onClick={() => handleTriggerCelebration(matchedUnits[0])}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md shadow-amber-500/25 transition-transform hover:scale-104 active:scale-95"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>{lang === 'ja' ? '錬成する' : 'Craft it'}</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Matched Named Units Badge */}
-                {matchedUnits.length > 0 && (
-                  <div className="pt-3 border-t border-amber-200/80 dark:border-slate-700/80">
-                    <div className="text-xs font-black text-amber-600 dark:text-amber-400 mb-2 flex items-center justify-between">
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>
-                          {lang === 'ja' ? 'この組み合わせでできる単位' : 'Units you have made'}
-                        </span>
-                      </span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
-                        {lang === 'ja' ? '✨で錬成、📖で図鑑' : '✨ craft · 📖 details'}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {matchedUnits.map((match) => (
-                        <div
-                          key={match.id}
-                          className="flex items-center gap-2 p-1.5 pl-3 rounded-2xl bg-white dark:bg-slate-800 border-2 border-amber-400 dark:border-amber-500/70 shadow-xs transition-all hover:scale-103"
-                        >
-                          <span className="font-serif font-black text-xl text-amber-600 dark:text-amber-400 select-none">
-                            {uSym(match, lang)}
-                          </span>
-                          <div className="text-left pr-1">
-                            <span className="font-black text-xs text-slate-800 dark:text-slate-100 block leading-tight">
-                              {uName(match, lang)}
-                            </span>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block leading-none">
-                              {uQty(match, lang)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700">
-                            <button
-                              onClick={() => handleTriggerCelebration(match)}
-                              className="p-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-600 dark:text-amber-400 text-[10px] font-bold transition-colors"
-                              title={lang === 'ja' ? '錬成エフェクトを発動' : 'Play FX'}
-                            >
-                              <Sparkles className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                sounds.playPop();
-                                onSelectUnit(match);
-                              }}
-                              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-650 text-slate-600 dark:text-slate-300 text-[10px] font-bold transition-colors"
-                              title={lang === 'ja' ? '図鑑を開く' : 'Inspect'}
-                            >
-                              📖
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 次元は同じでも係数が違う単位（錬成成功にはしない） */}
-                {sameDimOtherFactor.length > 0 && (
-                  <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                    <div className="font-bold mb-1.5">
-                      {lang === 'ja'
-                        ? '次元は同じでも、係数（大きさ）がちがう単位'
-                        : 'Same dimensions, different size (factor)'}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {sameDimOtherFactor.map((u) => (
-                        <button
-                          key={u.id}
-                          onClick={() => {
-                            sounds.playPop();
-                            onSelectUnit(u);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-400"
-                        >
-                          <span className="font-serif font-bold">{uSym(u, lang)}</span>
-                          <span className="text-[10px] text-slate-500 ml-1">{uQty(u, lang)}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
-                      {lang === 'ja'
-                        ? '例：g と kg は同じ「質量」ですが、1 kg = 1000 g。かけ算・わり算だけでは別の単位になります。'
-                        : 'e.g. g and kg both measure mass, but 1 kg = 1000 g, so multiplying and dividing alone does not turn one into the other.'}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Adventure Quests Board */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-amber-100 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-amber-500" />
-                <span>{lang === 'ja' ? '錬成お題クエスト' : 'Adventure Quests'}</span>
-              </h2>
-              <span className="text-xs text-slate-400">
-                {lang === 'ja' ? 'タップして目標を設定' : 'Select quest to challenge'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-              {QUESTS.map((q) => {
-                const isSelected = selectedQuestId === q.id;
-                const isDone = completedQuests.has(q.id);
-                const targetU = unitsById[q.targetId];
-
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => {
-                      sounds.playPop();
-                      setSelectedQuestId(q.id);
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all flex items-start justify-between gap-2 ${
-                      isSelected
-                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-600 ring-1 ring-amber-400'
-                        : isDone
-                        ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60'
-                        : 'bg-slate-50/60 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-amber-300'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                        <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                          {lang === 'ja' ? q.titleJa : q.titleEn}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                        {lang === 'ja' ? q.hintJa : q.hintEn}
-                      </p>
-                    </div>
-
-                    {targetU && (
-                      <span className="font-serif font-bold text-base text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-700 border border-amber-200 dark:border-slate-600 shadow-2xs shrink-0">
-                        {uSym(targetU, lang)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
 
-      {/* Synthesis Celebration Success Modal */}
       {successCelebration && (
         <SynthesisSuccessModal
           unit={successCelebration.unit}
