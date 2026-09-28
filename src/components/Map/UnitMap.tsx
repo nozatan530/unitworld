@@ -7,7 +7,7 @@ import {
   Route,
   ChevronRight,
 } from 'lucide-react';
-import { UnitDefinition, RealmInfo } from '../../types/unit';
+import { UnitDefinition } from '../../types/unit';
 import {
   REALMS,
   RAW_UNITS,
@@ -18,8 +18,6 @@ import {
   getUnitDim,
   formatDimSI,
   WORLD_SIZE,
-  layoutWorld,
-  LayoutMode,
 } from '../../data/unitsData';
 import { uSym, uName, uQty, realmName, unitSearchText, bySymLength } from '../../utils/i18n';
 import { sounds } from '../../utils/sound';
@@ -32,44 +30,14 @@ interface UnitMapProps {
   isDark?: boolean;
 }
 
-// 上の操作バー（地域ワープ・検索）の高さ。地図はこの下から見せる
-const TOP_BAR = 110;
-// これより縮めたら、単位の代わりに「島の地図」を表示する（文字が読めない大きさになるため）
-const ISLAND_BELOW = 0.5;
-// 島の地図で、島ごとに大きく見せる代表的な単位
-const KEY_UNITS: Record<string, string[]> = {
-  base: ['m', 'kg', 's', 'A', 'K', 'mol', 'cd'],
-  mechanics: ['N', 'J', 'W', 'Pa'],
-  wave: ['Hz', 'nm', 'lm'],
-  thermal: ['J_K', 'degC', 'cal'],
-  em: ['C', 'V', 'ohm', 'T'],
-  atomic: ['eV', 'Bq', 'Sv'],
-  chem: ['mol_L', 'g_mol', 'pct'],
-  bio: ['um', 'lx', 'mmHg'],
-  earth: ['hPa', 'Gal', 'ly'],
-  scale: ['pH', 'M', 'shindo'],
-};
-// 文字列のおおよその幅（漢字・かなは1、英数字は0.6文字分）
-const textWidth = (t: string) => [...t].reduce((w, ch) => w + (/[\u3040-\u9fff\uff00-\uffef]/.test(ch) ? 1.0 : 0.6), 0);
-
-const fitAllScale = (rect: DOMRect) =>
-  Math.min((rect.width - 32) / WORLD_SIZE.width, (rect.height - TOP_BAR - 16) / WORLD_SIZE.height);
-
-// 最初の表示：どちらも全体（島の地図）から始める。縦長の画面では島のカード一覧になる
-const initialView = (rect: DOMRect, mode: LayoutMode) => {
-  if (mode === 'tall') {
-    const s = ISLAND_BELOW * 0.6;
-    return { scale: s, pan: { x: (rect.width - WORLD_SIZE.width * s) / 2, y: TOP_BAR } };
-  }
-  const s = Math.min(0.9, fitAllScale(rect));
-  return {
-    scale: s,
-    pan: { x: (rect.width - WORLD_SIZE.width * s) / 2, y: TOP_BAR + Math.max(0, (rect.height - TOP_BAR - WORLD_SIZE.height * s) / 2) },
-  };
+// 画面に地図全体が収まる倍率と位置
+const fitWorld = (rect: DOMRect) => {
+  const s = Math.max(0.14, Math.min((rect.width - 32) / WORLD_SIZE.width, (rect.height - 120) / WORLD_SIZE.height, 0.9));
+  return { scale: s, pan: { x: (rect.width - WORLD_SIZE.width * s) / 2, y: 70 + (rect.height - 70 - WORLD_SIZE.height * s) / 2 } };
 };
 
 // 単位の枠：記号の長さから幅を決める（漢字は1文字分、英数字は約0.58文字分）
-const SYM_FONT = 20;
+const SYM_FONT = 18;
 const nodeBox = (u: UnitDefinition, lang: 'ja' | 'en') => {
   const sym = uSym(u, lang);
   const width = [...sym].reduce((w, ch) => w + (/[\u3040-\u9fff]/.test(ch) ? 1.0 : 0.6), 0) * SYM_FONT;
@@ -100,8 +68,6 @@ export const UnitMap: React.FC<UnitMapProps> = ({
   isDark = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [mode, setMode] = useState<LayoutMode>(WORLD_SIZE.mode);
-  const [layoutVersion, setLayoutVersion] = useState(0);
   const [scale, setScale] = useState<number>(0.75);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: -280, y: -220 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -113,66 +79,6 @@ export const UnitMap: React.FC<UnitMapProps> = ({
   const [showPathFinder, setShowPathFinder] = useState<boolean>(false);
   const [pathStart, setPathStart] = useState<string>('kg');
   const [pathEnd, setPathEnd] = useState<string>('V');
-
-  const rectOf = () => containerRef.current?.getBoundingClientRect();
-  const minScale = () => {
-    const rect = rectOf();
-    if (WORLD_SIZE.mode === 'tall') return ISLAND_BELOW * 0.6;
-    return rect ? Math.min(fitAllScale(rect), 0.2) * 0.8 : 0.1;
-  };
-  const clampScale = (v: number) => Math.min(2.5, Math.max(minScale(), v));
-  // 単位が読める大きさ（縦長の画面では横幅いっぱい）
-  const unitScale = () => {
-    const rect = rectOf();
-    return rect && WORLD_SIZE.mode === 'tall' ? Math.min(1.3, (rect.width - 16) / WORLD_SIZE.width) : 1.1;
-  };
-
-  // 画面の形（横長／縦長）に合わせて島を並べ直す
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const apply = (force: boolean) => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const next: LayoutMode = rect.width < 640 ? 'tall' : 'wide';
-      if (!force && next === WORLD_SIZE.mode) return;
-      layoutWorld(next);
-      setMode(next);
-      setLayoutVersion((v) => v + 1);
-      const view = initialView(rect, next);
-      setScale(view.scale);
-      setPan(view.pan);
-    };
-    apply(true);
-    const ro = new ResizeObserver(() => apply(false));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // 島に近づく（縦長の画面は横幅に合わせ、島の上端から見せる）
-  const flyToRealm = useCallback((r: RealmInfo) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    let s: number;
-    if (WORLD_SIZE.mode === 'tall') s = Math.min(1.3, (rect.width - 16) / r.width);
-    else s = Math.max(ISLAND_BELOW + 0.08, Math.min(1.2, (rect.width - 40) / r.width, (rect.height - TOP_BAR - 24) / r.height));
-    const x = rect.width / 2 - (r.x + r.width / 2) * s;
-    const fits = r.height * s <= rect.height - TOP_BAR - 16;
-    const y = fits ? TOP_BAR + (rect.height - TOP_BAR - r.height * s) / 2 - r.y * s : TOP_BAR + 8 - r.y * s;
-    setScale(s);
-    setPan({ x, y });
-  }, []);
-
-  // 画面の中心を基準にズーム
-  const zoomBy = (factor: number) => {
-    const rect = rectOf();
-    if (!rect) return;
-    const ns = clampScale(scale * factor);
-    const cx = rect.width / 2;
-    const cy = (rect.height + TOP_BAR) / 2;
-    setPan({ x: cx - (cx - pan.x) * (ns / scale), y: cy - (cy - pan.y) * (ns / scale) });
-    setScale(ns);
-  };
 
   // Smooth camera zoom/fly to coordinate
   const flyTo = useCallback((targetX: number, targetY: number, targetScale = 1.1) => {
@@ -187,47 +93,28 @@ export const UnitMap: React.FC<UnitMapProps> = ({
   // When focusedUnit changes from outside (e.g. from Detail drawer or Catalog)
   useEffect(() => {
     if (focusedUnit) {
-      flyTo(focusedUnit.x, focusedUnit.y, unitScale());
+      flyTo(focusedUnit.x, focusedUnit.y, 1.15);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedUnit, flyTo]);
 
-  // ドラッグで移動、2本指でピンチズーム
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const pinch = useRef<{ dist: number; scale: number; pan: { x: number; y: number }; mid: { x: number; y: number } } | null>(null);
-  const pointerDist = () => {
-    const [a, b] = Array.from(pointers.current.values());
-    return Math.hypot(a.x - b.x, a.y - b.y);
-  };
+  // Initial centering
+  useEffect(() => {
+    if (containerRef.current) {
+      const fit = fitWorld(containerRef.current.getBoundingClientRect());
+      setScale(fit.scale);
+      setPan(fit.pan);
+    }
+  }, []);
+
+  // Pan interaction
   const handleMouseDown = (e: React.PointerEvent) => {
     // Only drag with primary mouse button (touch and pen report button 0)
     if (e.button !== 0) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 2) {
-      const rect = rectOf()!;
-      const [a, b] = Array.from(pointers.current.values());
-      pinch.current = {
-        dist: pointerDist(),
-        scale,
-        pan,
-        mid: { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top },
-      };
-      setIsDragging(false);
-      return;
-    }
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
   const handleMouseMove = (e: React.PointerEvent) => {
-    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinch.current && pointers.current.size >= 2) {
-      const p = pinch.current;
-      const ns = clampScale(p.scale * (pointerDist() / p.dist));
-      setScale(ns);
-      setPan({ x: p.mid.x - (p.mid.x - p.pan.x) * (ns / p.scale), y: p.mid.y - (p.mid.y - p.pan.y) * (ns / p.scale) });
-      return;
-    }
     if (!isDragging) return;
     setPan({
       x: e.clientX - dragStart.x,
@@ -235,15 +122,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
     });
   };
 
-  const handleMouseUp = (e?: React.PointerEvent) => {
-    if (e) pointers.current.delete(e.pointerId);
-    if (pointers.current.size < 2) pinch.current = null;
-    if (pointers.current.size === 1) {
-      const [p] = Array.from(pointers.current.values());
-      setIsDragging(true);
-      setDragStart({ x: p.x - pan.x, y: p.y - pan.y });
-      return;
-    }
+  const handleMouseUp = () => {
     setIsDragging(false);
   };
 
@@ -256,7 +135,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
     const mouseY = e.clientY - rect.top;
 
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-    const newScale = clampScale(scale * zoomFactor);
+    const newScale = Math.min(Math.max(0.14, scale * zoomFactor), 2.5);
 
     // Zoom centered on cursor
     const newPanX = mouseX - (mouseX - pan.x) * (newScale / scale);
@@ -269,11 +148,10 @@ export const UnitMap: React.FC<UnitMapProps> = ({
   // Reset camera
   const handleResetCamera = () => {
     sounds.playClick();
-    const rect = rectOf();
-    if (rect) {
-      const view = initialView(rect, WORLD_SIZE.mode);
-      setScale(view.scale);
-      setPan(view.pan);
+    if (containerRef.current) {
+      const fit = fitWorld(containerRef.current.getBoundingClientRect());
+      setScale(fit.scale);
+      setPan(fit.pan);
     }
   };
 
@@ -351,28 +229,10 @@ export const UnitMap: React.FC<UnitMapProps> = ({
     return RAW_UNITS.filter((u) => unitSearchText(u).includes(q)).slice(0, 5);
   }, [searchQuery]);
 
-  const islandMode = scale < ISLAND_BELOW;
-
-  // 島どうしのつながり：単位の線を島ごとにまとめて数える
-  const realmLinks = useMemo(() => {
-    const m = new Map<string, { a: string; b: string; count: number }>();
-    MAP_LINKS.forEach((l) => {
-      const ra = unitsById[l.source]?.realmId;
-      const rb = unitsById[l.target]?.realmId;
-      if (!ra || !rb || ra === rb) return;
-      const [a, b] = [ra, rb].sort();
-      const key = `${a}|${b}`;
-      const cur = m.get(key) || { a, b, count: 0 };
-      cur.count += 1;
-      m.set(key, cur);
-    });
-    return Array.from(m.values());
-  }, []);
-
   const handleSelectSearchResult = (unit: UnitDefinition) => {
     sounds.playPop();
     setSearchQuery('');
-    flyTo(unit.x, unit.y, unitScale());
+    flyTo(unit.x, unit.y, 1.2);
     onSelectUnit(unit);
   };
 
@@ -400,7 +260,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
               key={r.id}
               onClick={() => {
                 sounds.playPop(520);
-                flyToRealm(r);
+                flyTo(r.x + r.width / 2, r.y + r.height / 2, 0.95);
               }}
               className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
             >
@@ -598,67 +458,12 @@ export const UnitMap: React.FC<UnitMapProps> = ({
         </div>
       )}
 
-      {/* スマホ（縦長）の全体像：島のカードを2列で並べる */}
-      {islandMode && mode === 'tall' && (
-        <div className="absolute inset-x-0 bottom-0 z-10 overflow-y-auto px-3 pb-20" style={{ top: TOP_BAR }}>
-          <div className="grid grid-cols-2 gap-2.5">
-            {REALMS.map((r) => {
-              const count = RAW_UNITS.filter((u) => u.realmId === r.id).length;
-              const syms = (KEY_UNITS[r.id] || []).map((id) => unitsById[id]).filter(Boolean).map((u) => uSym(u, lang));
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => {
-                    sounds.playPop(520);
-                    flyToRealm(r);
-                  }}
-                  className="text-left p-3 rounded-2xl border-2 bg-white/95 dark:bg-slate-900/95 shadow-sm active:scale-[0.98] transition-transform"
-                  style={{ borderColor: r.color }}
-                >
-                  <div className="font-black text-[15px] leading-tight" style={{ color: r.color }}>
-                    {r.icon} {realmName(r, lang)}
-                  </div>
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
-                    {lang === 'ja' ? `${count} 単位` : `${count} units`}
-                  </div>
-                  <div className="font-serif font-bold text-lg text-slate-800 dark:text-slate-100 mt-1 leading-snug">
-                    {syms.join('  ')}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* スマホで島に近づいているとき：カード一覧へ戻るボタン */}
-      {!islandMode && mode === 'tall' && !activeUnit && (
-        <button
-          onClick={() => {
-            sounds.playClick();
-            handleResetCamera();
-          }}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2.5 rounded-full bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 shadow-lg text-sm font-bold whitespace-nowrap"
-        >
-          🗺️ {lang === 'ja' ? '島の一覧へ' : 'All islands'}
-        </button>
-      )}
-
-      {/* 島の地図のときの案内 */}
-      {islandMode && mode === 'wide' && !activeUnit && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-md text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap pointer-events-none">
-          {lang === 'ja' ? '島をタップすると、単位が見えるところまで近づきます' : 'Tap an island to zoom in to its units'}
-        </div>
-      )}
-
       {/* Zoom / Navigation Float Controls */}
-      <div
-        style={{ display: islandMode && mode === 'tall' ? 'none' : undefined }}
-        className="absolute bottom-4 right-4 z-20 flex flex-col gap-1.5 p-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl shadow-lg border border-amber-200/60 dark:border-slate-800">
+      <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-1.5 p-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl shadow-lg border border-amber-200/60 dark:border-slate-800">
         <button
           onClick={() => {
             sounds.playClick();
-            zoomBy(1.25);
+            setScale((s) => Math.min(2.5, s * 1.2));
           }}
           className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors"
           title="Zoom In"
@@ -668,7 +473,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
         <button
           onClick={() => {
             sounds.playClick();
-            zoomBy(0.8);
+            setScale((s) => Math.max(0.14, s * 0.83));
           }}
           className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors"
           title="Zoom Out"
@@ -718,38 +523,10 @@ export const UnitMap: React.FC<UnitMapProps> = ({
           </defs>
 
           {/* World Container with dynamic pan & scale */}
-          <g
-            transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}
-            data-layout={layoutVersion}
-            style={{ display: islandMode && mode === 'tall' ? 'none' : undefined }}
-          >
-            {/* 0. 島の地図：島どうしのつながり（島の下に描き、すき間に橋のように見せる） */}
-            {islandMode &&
-              realmLinks.map((l) => {
-                const a = REALMS.find((r) => r.id === l.a)!;
-                const b = REALMS.find((r) => r.id === l.b)!;
-                return (
-                  <line
-                    key={`${l.a}-${l.b}`}
-                    x1={a.x + a.width / 2}
-                    y1={a.y + a.height / 2}
-                    x2={b.x + b.width / 2}
-                    y2={b.y + b.height / 2}
-                    stroke={isDark ? '#475569' : '#94A3B8'}
-                    strokeWidth={Math.min(14, 2 + l.count * 0.8) / scale}
-                    strokeLinecap="round"
-                    opacity={0.55}
-                  />
-                );
-              })}
-
+          <g transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}>
             {/* 1. Island Landmasses (Organic Rounded Realms) */}
             {REALMS.map((r) => (
-              <g
-                key={r.id}
-                onClick={islandMode ? () => { sounds.playPop(520); flyToRealm(r); } : undefined}
-                className={islandMode ? 'cursor-pointer' : undefined}
-              >
+              <g key={r.id}>
                 {/* Realm Soft Shadow / Landmass */}
                 <rect
                   x={r.x}
@@ -767,56 +544,34 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                   }}
                 />
 
-                {/* 島の名前（近づいたとき）：縮小しても読める大きさを保つ */}
-                {!islandMode && (() => {
-                  const fs = Math.min(28, Math.max(16, 12 / scale));
-                  const label = `${r.icon} ${realmName(r, lang)}`;
-                  const w = Math.min(r.width - 40, textWidth(label) * fs + fs * 2);
-                  return (
-                    <g transform={`translate(${r.x + 20}, ${r.y + 14})`}>
-                      <rect x="0" y="0" width={w} height={fs * 2.1} rx={fs * 1.05} fill={isDark ? '#1E293B' : 'white'} stroke={isDark ? '#334155' : r.borderLight} strokeWidth="1.5" />
-                      <text x={fs * 0.9} y={fs * 1.42} fontSize={fs} fontWeight="800" fill={isDark ? '#F8FAFC' : r.color} fontFamily="Zen Kaku Gothic New, sans-serif">
-                        {label}
-                      </text>
-                    </g>
-                  );
-                })()}
-
-                {/* 島の地図（遠くから見たとき）：島の名前・単位の数・代表的な記号を大きく */}
-                {islandMode && (() => {
-                  const name = `${r.icon} ${realmName(r, lang)}`;
-                  const count = RAW_UNITS.filter((u) => u.realmId === r.id).length;
-                  const symList = (KEY_UNITS[r.id] || []).map((id) => unitsById[id]).filter(Boolean).map((u) => uSym(u, lang));
-                  // 記号が多い島（基本単位）は2行に分ける
-                  const lines = symList.length > 4 ? [symList.slice(0, 4).join('  '), symList.slice(4).join('  ')] : [symList.join('  ')];
-                  const maxW = r.width * 0.86;
-                  const f1 = Math.min(24 / scale, maxW / textWidth(name));
-                  const f2 = f1 * 0.62;
-                  const f3 = Math.min(30 / scale, ...lines.map((l) => maxW / textWidth(l)), r.height * 0.22);
-                  const total = f1 * 1.25 + f2 * 1.6 + f3 * 1.2 * lines.length;
-                  const top = r.y + (r.height - total) / 2;
-                  const cx = r.x + r.width / 2;
-                  return (
-                    <g className="pointer-events-none select-none" fontFamily="Zen Kaku Gothic New, sans-serif" textAnchor="middle">
-                      <text x={cx} y={top + f1} fontSize={f1} fontWeight="900" fill={isDark ? '#F8FAFC' : r.color}>
-                        {name}
-                      </text>
-                      <text x={cx} y={top + f1 * 1.25 + f2 * 1.2} fontSize={f2} fontWeight="700" fill={isDark ? '#CBD5E1' : '#475569'}>
-                        {lang === 'ja' ? `${count} 単位` : `${count} units`}
-                      </text>
-                      {lines.map((l, i) => (
-                        <text key={i} x={cx} y={top + f1 * 1.25 + f2 * 1.6 + f3 * (1 + i * 1.2)} fontSize={f3} fontWeight="700" fontFamily="STIX Two Text, Georgia, serif" fill={isDark ? '#E2E8F0' : '#1E293B'}>
-                          {l}
-                        </text>
-                      ))}
-                    </g>
-                  );
-                })()}
+                {/* Realm Header Label Banner */}
+                <g transform={`translate(${r.x + 24}, ${r.y + 36})`}>
+                  <rect
+                    x="0"
+                    y="-22"
+                    width={Math.min(r.width - 48, 320)}
+                    height="36"
+                    rx="18"
+                    fill={isDark ? "#1E293B" : "white"}
+                    stroke={isDark ? "#334155" : r.borderLight}
+                    strokeWidth="1.5"
+                    className="shadow-xs"
+                  />
+                  <text
+                    x="16"
+                    y="2"
+                    fontSize="15"
+                    fontWeight="800"
+                    fill={isDark ? '#F8FAFC' : r.color}
+                    fontFamily="Zen Kaku Gothic New, sans-serif"
+                  >
+                    {r.icon} {realmName(r, lang)}
+                  </text>
+                </g>
               </g>
             ))}
 
             {/* 2. Map Connection Links / Roads */}
-            {!islandMode && (
             <g className="links-layer">
               {MAP_LINKS.map((link) => {
                 const src = unitsById[link.source];
@@ -827,8 +582,6 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                 const isIncoming = activeUnit && link.target === activeUnit.id;
                 const isOutgoing = activeUnit && link.source === activeUnit.id;
                 const isPathEdge = pathEdgeSet.has(`${link.source}->${link.target}`);
-                // 縦長の画面では、ほかの島へ向かう長い線は選んだ単位のものだけ描く（縦に何本も走って読みにくくなるため）
-                if (mode === 'tall' && src.realmId !== tgt.realmId && !isIncoming && !isOutgoing && !isPathEdge) return null;
 
                 const isConv = link.op === 'conv' || link.op === 'log';
                 let strokeColor = isConv ? '#94A3B8' : '#CBD5E1';
@@ -900,10 +653,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
               })}
             </g>
 
-            )}
-
             {/* 3. Pop Unit Nodes */}
-            {!islandMode && (
             <g className="nodes-layer">
               {RAW_UNITS.map((u) => {
                 const isSelected = selectedUnit?.id === u.id;
@@ -1010,7 +760,6 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                     </text>
 
                     {/* Bottom Quantity Pill Label */}
-                    {scale >= 0.7 && (
                     <g transform={`translate(0, ${box.h / 2 + 16})`} className="pointer-events-none">
                       <rect
                         x="-66"
@@ -1026,7 +775,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                         x="0"
                         y="4"
                         textAnchor="middle"
-                        fontSize="14"
+                        fontSize="13"
                         fontWeight="600"
                         fill={isDark ? "#CBD5E1" : "#334155"}
                         className="select-none"
@@ -1034,12 +783,10 @@ export const UnitMap: React.FC<UnitMapProps> = ({
                         {shortQty(uQty(u, lang), lang)}
                       </text>
                     </g>
-                    )}
                   </g>
                 );
               })}
             </g>
-            )}
           </g>
         </svg>
       </div>

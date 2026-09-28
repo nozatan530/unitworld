@@ -1740,36 +1740,27 @@ const REALM_PAD_X = 40;
 const REALM_PAD_TOP = 96;
 const REALM_PAD_BOTTOM = 40;
 const REALM_GAP = 70;
-// 横長の画面：5つずつ2段（地図全体が横長になり、PC の画面に合う）
-// 縦長の画面：1段に1つずつ縦に並べ、各島は2列（スマホで縦にスクロールしながら読める）
-export type LayoutMode = 'wide' | 'tall';
-const REALM_ROWS: Record<LayoutMode, string[][]> = {
-  wide: [['base', 'mechanics', 'wave', 'thermal', 'atomic'], ['em', 'chem', 'bio', 'earth', 'scale']],
-  tall: [['base'], ['mechanics'], ['wave'], ['thermal'], ['em'], ['atomic'], ['chem'], ['bio'], ['earth'], ['scale']],
-};
+const REALM_ROWS = [['base', 'mechanics', 'wave'], ['thermal', 'em', 'atomic'], ['chem', 'bio', 'earth', 'scale']];
 const REALM_COLS: Record<string, number> = { base: 3, mechanics: 5, wave: 2, thermal: 3, em: 4, atomic: 3, chem: 4, bio: 3, earth: 4, scale: 2 };
 
 RAW_UNITS.forEach((u) => {
   u.realmId = (u.kind === 'scale' ? 'scale' : FIELD_TO_REALM[u.field] || 'mechanics') as UnitDefinition['realmId'];
 });
 
-export const WORLD_SIZE = { width: 0, height: 0, mode: 'wide' as LayoutMode };
-
-// 島と単位の位置を決める（画面の形が変わったら呼び直す）
-export function layoutWorld(mode: LayoutMode) {
+function layoutWorld() {
   const byRealm: Record<string, UnitDefinition[]> = {};
   RAW_UNITS.forEach((u) => (byRealm[u.realmId] = byRealm[u.realmId] || []).push(u));
   const realmById: Record<string, RealmInfo> = {};
   REALMS.forEach((r) => (realmById[r.id] = r));
   let y = 0;
   let maxW = 0;
-  for (const row of REALM_ROWS[mode]) {
+  for (const row of REALM_ROWS) {
     let x = 0;
     let rowH = 0;
     for (const id of row) {
       const r = realmById[id];
       const units = byRealm[id] || [];
-      const cols = mode === 'tall' ? 2 : REALM_COLS[id];
+      const cols = REALM_COLS[id];
       const rows = Math.max(1, Math.ceil(units.length / cols));
       r.x = x;
       r.y = y;
@@ -1785,13 +1776,9 @@ export function layoutWorld(mode: LayoutMode) {
     maxW = Math.max(maxW, x - REALM_GAP);
     y += rowH + REALM_GAP;
   }
-  WORLD_SIZE.width = maxW;
-  WORLD_SIZE.height = y - REALM_GAP;
-  WORLD_SIZE.mode = mode;
-  return WORLD_SIZE;
+  return { width: maxW, height: y - REALM_GAP };
 }
-layoutWorld('wide');
-
+export const WORLD_SIZE = layoutWorld();
 
 // Calculation of dimensions and unit map lookup
 export const unitsById: Record<string, UnitDefinition> = {};
