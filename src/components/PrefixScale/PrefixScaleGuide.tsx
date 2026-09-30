@@ -20,7 +20,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
           <Ruler className="w-6 h-6 text-amber-500" />
           <span>{lang === 'ja' ? '接頭語・スケール早見表' : 'SI Prefixes & Scale Guide'}</span>
         </h1>
-        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
           {lang === 'ja'
             ? '10の何乗倍を表すSI接頭語（k, m, μ など）のスライダーと、単位ではない特別な目盛り（pH、マグニチュード等）の解説です。'
             : 'Interactive slider for powers of 10 prefixes, and explanations for logarithmic non-unit scales (pH, magnitude).'}
@@ -74,7 +74,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
                 }`}
               >
                 <div className="font-serif font-bold text-base">{p.sym}</div>
-                <div className="text-[10px] opacity-80">{p.factor}</div>
+                <div className="text-[11px] opacity-80">{p.factor}</div>
               </button>
             );
           })}
@@ -87,7 +87,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
           <Scale className="w-5 h-5 text-amber-500" />
           <span>{lang === 'ja' ? '「単位」ではなく「目盛り（スケール）」の仲間たち' : 'Scales that are NOT SI Units'}</span>
         </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           {lang === 'ja'
             ? '高校理科のテストでよく単位と混同されがちですが、これらは単位ではなく対数目盛りや離散的な階級です。'
             : 'Often confused with physical units, these are logarithmic mathematical scales or discrete intensity ranks.'}
@@ -98,7 +98,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="font-serif font-bold text-lg text-amber-600 dark:text-amber-400">pH</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300">
                 {lang === 'ja' ? '対数の目盛り（化学・生物）' : 'Log scale (chemistry, biology)'}
               </span>
             </div>
@@ -116,7 +116,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="font-serif font-bold text-lg text-indigo-600 dark:text-indigo-400">M</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
                 {lang === 'ja' ? '対数の目盛り（地学）' : 'Log scale (earth science)'}
               </span>
             </div>
@@ -134,7 +134,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="font-serif font-bold text-lg text-emerald-600 dark:text-emerald-400">{lang === 'ja' ? '震度' : 'Shindo'}</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 {lang === 'ja' ? '10段階の階級（地学）' : '10-step scale (earth science)'}
               </span>
             </div>
@@ -152,7 +152,7 @@ export const PrefixScaleGuide: React.FC<PrefixScaleGuideProps> = ({ lang }) => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="font-serif font-bold text-lg text-purple-600 dark:text-purple-400">{lang === 'ja' ? '等級' : 'mag'}</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
                 {lang === 'ja' ? '対数の目盛り（天文）' : 'Log scale (astronomy)'}
               </span>
             </div>

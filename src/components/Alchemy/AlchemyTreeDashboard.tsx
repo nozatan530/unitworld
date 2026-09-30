@@ -102,7 +102,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
           </span>
           <div>
             <h1 className="text-xl font-black text-slate-800 dark:text-slate-100">{ja ? '錬成ツリー図' : 'Crafting Tree'}</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               {ja
                 ? '作りたい単位を選ぶと、基本単位からの作り方が木の形で出ます。'
                 : 'Pick a unit to see how it is built up from the base units.'}
@@ -110,9 +110,9 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
           </div>
         </div>
         <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-          <span className="text-slate-500">{ja ? '作れた単位' : 'Crafted'}</span>{' '}
+          <span className="text-slate-600 dark:text-slate-400">{ja ? '作れた単位' : 'Crafted'}</span>{' '}
           <span className="font-serif font-black text-cyan-700 dark:text-cyan-300 text-base">{craftedCount}</span>
-          <span className="text-slate-400"> / {TARGET_UNITS.length}</span>
+          <span className="text-slate-500 dark:text-slate-400"> / {TARGET_UNITS.length}</span>
         </div>
       </div>
 
@@ -120,7 +120,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
         {/* ① 作りたい単位を選ぶ */}
         <section className="lg:col-span-4 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-            <span className="inline-flex items-center justify-center w-5 h-5 mr-1.5 rounded-full bg-cyan-600 text-white text-[11px]">1</span>
+            <span className="inline-flex items-center justify-center w-5 h-5 mr-1.5 rounded-full bg-cyan-600 text-white text-xs">1</span>
             {ja ? '作りたい単位を選ぶ' : 'Choose a unit to make'}
           </h2>
           <TargetPicker targetId={targetId} crafted={crafted} onPick={pickTarget} lang={lang} />
@@ -129,12 +129,12 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
         {/* ② 作り方の木 */}
         <section className="lg:col-span-8 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-            <span className="inline-flex items-center justify-center w-5 h-5 mr-1.5 rounded-full bg-cyan-600 text-white text-[11px]">2</span>
+            <span className="inline-flex items-center justify-center w-5 h-5 mr-1.5 rounded-full bg-cyan-600 text-white text-xs">2</span>
             {ja ? '作り方' : 'How to make it'}
           </h2>
 
           {!target || !layout ? (
-            <p className="text-sm text-slate-500 py-10 text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-400 py-10 text-center">
               {ja ? '左のリストから、作りたい単位を選んでください。' : 'Choose a unit from the list.'}
             </p>
           ) : (
@@ -144,9 +144,9 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="font-serif font-black text-2xl text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(target, lang)}</span>
                     <span className="font-bold text-slate-800 dark:text-slate-100">{uName(target, lang)}</span>
-                    <span className="text-xs text-slate-500">{uQty(target, lang)}</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-400">{uQty(target, lang)}</span>
                   </div>
-                  <div className="text-xs text-slate-500 font-serif">= {formatDimSI(getUnitDim(target), lang)}</div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400 font-serif">= {formatDimSI(getUnitDim(target), lang)}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -174,7 +174,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
 
               {forms.length > 1 && (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-slate-500">{ja ? '作り方：' : 'Recipe:'}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{ja ? '作り方：' : 'Recipe:'}</span>
                   {forms.map((f, i) => (
                     <button
                       key={i}
@@ -288,7 +288,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
               </div>
 
               {/* 凡例 */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300">
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block w-6 h-3.5 rounded-full border-[2.5px] border-slate-600 bg-slate-100" />
                   {ja ? '基本単位・材料' : 'Base unit / ingredient'}
@@ -314,7 +314,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
             <Clock className="w-4 h-4 text-cyan-600" />
             {ja ? 'あなたの錬成記録' : 'Your recipes'}
-            <span className="text-xs font-normal text-slate-400">({history.length})</span>
+            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">({history.length})</span>
           </h2>
           {history.length > 0 && (
             <button
@@ -324,7 +324,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
                   setHistory(getAlchemyHistory());
                 }
               }}
-              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500"
+              className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-rose-500"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {ja ? '記録を消す' : 'Clear'}
@@ -332,7 +332,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
           )}
         </div>
         {history.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             {ja ? 'まだ記録はありません。錬成ラボで単位を作ると、ここに並びます。' : 'No recipes yet. Units you make in the lab will appear here.'}
           </p>
         ) : (
@@ -344,7 +344,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
                 <div key={rec.id} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                   <div className="font-serif text-sm min-w-0">
                     <span className="text-slate-700 dark:text-slate-200">{formText(rec.ingredients.map((i) => [i.id, i.exp] as [string, number]))}</span>
-                    <span className="text-slate-400 mx-1.5">→</span>
+                    <span className="text-slate-500 dark:text-slate-400 mx-1.5">→</span>
                     <span className="font-bold text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(u, lang)}</span>
                   </div>
                   {onLoadRecipe && (
@@ -353,7 +353,7 @@ export const AlchemyTreeDashboard: React.FC<AlchemyTreeDashboardProps> = ({
                         sounds.playPop();
                         onLoadRecipe(rec.ingredients);
                       }}
-                      className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-cyan-400"
+                      className="shrink-0 text-xs font-bold px-2 py-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-cyan-400"
                     >
                       {ja ? 'フラスコに戻す' : 'Load'}
                     </button>

@@ -83,9 +83,9 @@ export default function App() {
 
   // Jump from anywhere to map and focus on unit
   const handleFocusOnMap = (unit: UnitDefinition) => {
-    setFocusedUnit(unit);
+    setFocusedUnit({ ...unit });
     setActiveTab('map');
-    setSelectedUnit(unit);
+    setSelectedUnit(null);
   };
 
   // Transfer unit to alchemy synthesizer
@@ -97,7 +97,7 @@ export default function App() {
 
   return (
     <div
-      className={`${activeTab === 'map' ? 'h-dvh overflow-hidden' : 'min-h-dvh'} bg-[#F6F8FA] dark:bg-[#0B1015] text-slate-800 dark:text-slate-100 flex flex-col transition-colors selection:bg-cyan-200 dark:selection:bg-cyan-900/50`}
+      className={`min-h-dvh pb-(--tabbar-h) bg-[#F6F8FA] dark:bg-[#0B1015] text-slate-800 dark:text-slate-100 flex flex-col transition-colors selection:bg-cyan-200 dark:selection:bg-cyan-900/50`}
     >
       {/* Top Header */}
       <Header
@@ -112,12 +112,16 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className={activeTab === 'map' ? 'flex-1 min-h-0 relative' : 'flex-1'}>
+      <main className="flex-1">
         {activeTab === 'map' && (
           <UnitMap
             onSelectUnit={setSelectedUnit}
             selectedUnit={selectedUnit}
             focusedUnit={focusedUnit}
+            onOpenTree={(id) => {
+              changeTarget(id);
+              setActiveTab('tree');
+            }}
             lang={lang}
             isDark={isDark}
           />
@@ -190,23 +194,19 @@ export default function App() {
         />
       )}
 
-      {/* フッター：すべての画面に表示（マップでは地図の下に細く） */}
+      {/* フッター：すべての画面に表示 */}
       <footer
-        className={`${activeTab === 'map' ? 'py-1.5' : 'mt-auto py-6'} px-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 bg-[#F6F8FA] dark:bg-[#0B1015]`}
+        className={`mt-auto py-6 px-4 text-center text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 bg-[#F6F8FA] dark:bg-[#0B1015]`}
       >
         <p>
           {lang === 'ja' ? '制作：のざたん' : 'Made by Nozatan'} ／{' '}
           <a href="https://meetupsensei.com" className="text-cyan-700 dark:text-cyan-400 hover:underline font-medium">
             meetupsensei.com
           </a>
-          {activeTab !== 'map' && (
-            <>
-              {' '}／{' '}
-              <a href="https://unit.meetupsensei.com/" className="hover:underline">
-                {lang === 'ja' ? '単位のつながり帳' : 'Unit Connections'}
-              </a>
-            </>
-          )}
+          {' '}／{' '}
+          <a href="https://unit.meetupsensei.com/" className="hover:underline">
+            {lang === 'ja' ? '単位のつながり帳' : 'Unit Connections'}
+          </a>
         </p>
       </footer>
     </div>
