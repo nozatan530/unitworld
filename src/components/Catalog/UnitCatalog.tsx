@@ -72,7 +72,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
               <BookOpen className="w-6 h-6 text-amber-500" />
               <span>{lang === 'ja' ? '単位大図鑑 (87項目)' : 'Unit Compendium (87 Units)'}</span>
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
               {lang === 'ja'
                 ? '高校理科の全範囲に登場する単位の定義、次元、つながりを網羅した一覧図鑑です。'
                 : 'Browse all 87 units from high school physics, chemistry, biology, and earth science.'}
@@ -81,7 +81,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
 
           {/* Search Box */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full sm:w-72">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <Search className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
             <input
               type="text"
               value={searchQuery}
@@ -96,7 +96,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
           {/* Subject Filter Chips */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-slate-400 mr-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1">
               {lang === 'ja' ? '教科:' : 'Subject:'}
             </span>
             <button
@@ -131,7 +131,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
           </div>
 
           {/* Result Count */}
-          <span className="text-xs font-mono text-slate-400">
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
             {filteredUnits.length} / {RAW_UNITS.length} units
           </span>
         </div>
@@ -146,7 +146,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                 <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">
                   {lang === 'ja' ? field : groupedByField[field][0].fieldEn || field}
                 </h2>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                   {groupedByField[field].length}
                 </span>
               </div>
@@ -173,7 +173,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                             {uSym(u, lang)}
                           </span>
                           {isBase && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                               BASE
                             </span>
                           )}
@@ -184,14 +184,14 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                           <h3 className="font-bold text-xs text-slate-700 dark:text-slate-200 truncate">
                             {lang === 'ja' ? u.name : u.nameEn || u.name}
                           </h3>
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">
+                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium truncate">
                             {uQty(u, lang)}
                           </p>
                         </div>
                       </div>
 
                       {/* Bottom Footer Action */}
-                      <div className="pt-2.5 mt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                      <div className="pt-2.5 mt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="truncate max-w-[80px]">
                           {u.kind !== 'scale' ? formatDimSI(dim, lang) : lang === 'ja' ? '目盛り（単位ではない）' : 'Scale (not a unit)'}
                         </span>
@@ -201,7 +201,7 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                             sounds.playPop();
                             onFocusOnMap(u);
                           }}
-                          className="p-1 rounded-md hover:bg-amber-100 dark:hover:bg-slate-800 text-slate-400 hover:text-amber-600 transition-colors"
+                          className="p-1 rounded-md hover:bg-amber-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-amber-600 transition-colors"
                           title="Show on map"
                         >
                           <Compass className="w-3.5 h-3.5" />

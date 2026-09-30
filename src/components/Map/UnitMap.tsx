@@ -322,7 +322,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
       >
         <span aria-hidden className="absolute left-1 top-2 bottom-2 w-1 rounded-full" style={{ background: realm?.color }} />
         <span className={`font-serif font-bold leading-tight text-slate-800 dark:text-slate-100 whitespace-nowrap ${bySymLength(uSym(u, lang), 'text-[17px]', 'text-[15px]', 'text-[13px]')}`}>{uSym(u, lang)}</span>
-        <span className="max-w-full truncate text-[10px] leading-tight text-slate-500 dark:text-slate-400">{shortQty(uQty(u, lang), lang)}</span>
+        <span className="max-w-full truncate text-[11px] leading-tight text-slate-600 dark:text-slate-400">{shortQty(uQty(u, lang), lang)}</span>
         {done && (
           <CheckCircle2 aria-label={ja ? 'ラボで作れた' : 'crafted'} className="absolute -top-1.5 -right-1.5 w-4 h-4 text-emerald-500 bg-white dark:bg-slate-900 rounded-full" />
         )}
@@ -356,7 +356,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{ja ? 'ワールドマップ' : 'World Map'}</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
               {view === 'build'
                 ? ja
                   ? `${RAW_UNITS.length}の単位を、7つの基本単位から組み立てられる順に並べた全体図です。`
@@ -367,7 +367,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
             </p>
           </div>
         </div>
-        <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+        <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
           {ja ? '作れた単位' : 'Crafted'} <span className="font-serif font-bold text-base text-cyan-700 dark:text-cyan-300">{craftedCount}</span> / {TARGET_UNITS.length}
         </div>
       </div>
@@ -395,7 +395,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
 
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <Search className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
             <input
               type="search"
               value={searchQuery}
@@ -420,7 +420,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
                 >
                   <span className="font-serif font-bold text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(u, lang)}</span>
                   <span className="text-slate-700 dark:text-slate-200 truncate">{uName(u, lang)}</span>
-                  <span className="ml-auto text-xs text-slate-400 shrink-0">{shortQty(uQty(u, lang), lang)}</span>
+                  <span className="ml-auto text-xs text-slate-500 dark:text-slate-400 shrink-0">{shortQty(uQty(u, lang), lang)}</span>
                 </button>
               ))}
             </div>
@@ -447,7 +447,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
       {/* つながり探索（地図の上に重ねず、ここに開く） */}
       {showRoute && (
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-cyan-200 dark:border-slate-700 shadow-sm space-y-3" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             {ja
               ? '出発と目的地の単位を選ぶと、組み立て方や換算でつながる最短ルートを地図に示します。'
               : 'Pick a start and a goal to show the shortest route through recipes and conversions.'}
@@ -457,7 +457,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
               ['start', routeStart, setRouteStart, ja ? '出発' : 'Start'],
               ['goal', routeEnd, setRouteEnd, ja ? '目的地' : 'Goal'],
             ] as const).map(([key, value, setter, lbl]) => (
-              <label key={key} className="flex-1 min-w-[140px] text-xs font-bold text-slate-500 dark:text-slate-400 space-y-1">
+              <label key={key} className="flex-1 min-w-[140px] text-xs font-bold text-slate-600 dark:text-slate-400 space-y-1">
                 <span className="block">{lbl}</span>
                 <select
                   value={value}
@@ -494,7 +494,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
               ))}
             </div>
           ) : (
-            <p className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-xs text-slate-500 text-center">
+            <p className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-400 text-center">
               {routeStart === routeEnd
                 ? ja ? '出発と目的地がおなじです。' : 'Start and goal are the same.'
                 : ja ? 'この向きにたどれるルートはありません。出発と目的地を入れ替えてみましょう。' : 'No route in this direction. Try swapping start and goal.'}
@@ -531,7 +531,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
             );
           })}
         </div>
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
           <span>{ja ? '単位をタップ → つながりが光る（もう一度タップで詳しく）' : 'Tap a unit to light up its links (tap again for details)'}</span>
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded border-2 border-sky-500 bg-sky-50" />
@@ -579,7 +579,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
             .map((e) => (
               <span
                 key={e.id}
-                className="absolute -translate-x-1/2 -translate-y-1/2 px-1.5 rounded-full text-[11px] font-bold leading-4 bg-white dark:bg-slate-900 border"
+                className="absolute -translate-x-1/2 -translate-y-1/2 px-1.5 rounded-full text-xs font-bold leading-4 bg-white dark:bg-slate-900 border"
                 style={{ left: e.lx, top: e.ly, color: EDGE_COLOR[e.kind], borderColor: EDGE_COLOR[e.kind] }}
               >
                 {e.label}
@@ -588,7 +588,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
         </div>
 
         {view === 'build' ? (
-          <div className="flex flex-col md:flex-row gap-4 md:gap-3 md:min-w-[1100px]">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-3 md:min-w-[900px]">
             {BUILD_COLUMNS.map((col) => {
               // なかまの多い列（基本単位など）は、広い画面で2列に割って縦に長くなりすぎないようにする
               const rows = col.hosts.reduce((n, u) => n + 1 + Math.ceil((MEMBERS[u.id] || []).length / 2) * 0.55, 0);
@@ -596,7 +596,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
               return (
                 <section key={col.depth} className="md:basis-0 min-w-0" style={{ flexGrow: sub }}>
                   <h2 className="flex items-center gap-1.5 mb-2 text-xs font-bold text-slate-600 dark:text-slate-300">
-                    <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-[11px]">{col.depth}</span>
+                    <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs">{col.depth}</span>
                     {stepTitle(col.depth)}
                   </h2>
                   <div
@@ -616,9 +616,9 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
                 <h2 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: isDark ? undefined : realm.color }}>
                   <span>{realm.icon}</span>
                   <span className="dark:text-slate-100">{realmName(realm, lang)}</span>
-                  <span className="text-xs font-medium text-slate-400">{units.length}</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{units.length}</span>
                 </h2>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">{realmDesc(realm, lang)}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">{realmDesc(realm, lang)}</p>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-2">{units.map((u) => renderUnit(u))}</div>
               </section>
             ))}
@@ -629,9 +629,8 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
       {/* 選んだ単位のカード（画面の下に固定） */}
       {focus && (
         <div
-          className="fixed z-30 bottom-3 inset-x-3 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[400px] p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl border border-slate-200 dark:border-slate-700 space-y-3"
-          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
-          onClick={(e) => e.stopPropagation()}
+          className="fixed z-30 bottom-[calc(var(--tabbar-h)+0.75rem)] xl:bottom-6 inset-x-3 sm:left-auto sm:right-6 sm:w-[400px] p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl border border-slate-200 dark:border-slate-700 space-y-3"
+                    onClick={(e) => e.stopPropagation()}
           role="region"
           aria-label={ja ? '選んだ単位' : 'Selected unit'}
         >
@@ -641,7 +640,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-bold text-slate-800 dark:text-slate-100 leading-tight">{uName(focus, lang)}</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-slate-600 dark:text-slate-400">
                 {uQty(focus, lang)} ・ {realmById[focus.realmId]?.icon} {realmName(realmById[focus.realmId], lang)}
               </div>
               <div className="mt-1 text-sm font-serif text-slate-700 dark:text-slate-200">
@@ -652,7 +651,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
                   : uConv(focus, lang) || (focus.kind === 'scale' ? (ja ? '単位ではない目盛り' : 'A scale, not a unit') : '')}
               </div>
             </div>
-            <button onClick={() => setFocusId(null)} className="p-1 -m-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={ja ? '閉じる' : 'Close'}>
+            <button onClick={() => setFocusId(null)} className="p-1 -m-1 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={ja ? '閉じる' : 'Close'}>
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -665,7 +664,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
               ] as const).map(([key, ids, lbl, cls]) =>
                 ids.size > 0 ? (
                   <div key={key} className="flex items-start gap-2">
-                    <span className="shrink-0 w-12 pt-0.5 font-bold text-slate-500 dark:text-slate-400">{lbl}</span>
+                    <span className="shrink-0 w-12 pt-0.5 font-bold text-slate-600 dark:text-slate-400">{lbl}</span>
                     <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
                       {Array.from(ids).map((id) => (
                         <button

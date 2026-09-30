@@ -97,7 +97,7 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-dvh bg-[#F6F8FA] dark:bg-[#0B1015] text-slate-800 dark:text-slate-100 flex flex-col transition-colors selection:bg-cyan-200 dark:selection:bg-cyan-900/50`}
+      className={`min-h-dvh pb-(--tabbar-h) bg-[#F6F8FA] dark:bg-[#0B1015] text-slate-800 dark:text-slate-100 flex flex-col transition-colors selection:bg-cyan-200 dark:selection:bg-cyan-900/50`}
     >
       {/* Top Header */}
       <Header
@@ -196,7 +196,7 @@ export default function App() {
 
       {/* フッター：すべての画面に表示 */}
       <footer
-        className={`mt-auto py-6 px-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 bg-[#F6F8FA] dark:bg-[#0B1015]`}
+        className={`mt-auto py-6 px-4 text-center text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 bg-[#F6F8FA] dark:bg-[#0B1015]`}
       >
         <p>
           {lang === 'ja' ? '制作：のざたん' : 'Made by Nozatan'} ／{' '}

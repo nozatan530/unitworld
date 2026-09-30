@@ -89,7 +89,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
               sounds.playClick();
               onClose();
             }}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-750 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors shadow-xs"
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-750 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors shadow-xs"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -109,7 +109,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                   {getKindLabel(unit.kind)}
                 </span>
                 {unit.subj.map((s) => (
-                  <span key={s} className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${getSubjColor(s)}`}>
+                  <span key={s} className={`text-xs font-medium px-2 py-0.5 rounded-md ${getSubjColor(s)}`}>
                     {subjLabel(s, lang)}
                   </span>
                 ))}
@@ -139,14 +139,14 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
         <div className="overflow-y-auto px-6 py-5 space-y-6 text-slate-700 dark:text-slate-200 text-sm">
           {/* Section 1: The Connections Highway (What it comes from -> This Unit -> What it creates) */}
           <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-slate-800/60 border border-amber-200/50 dark:border-slate-700/60">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 mb-3 flex items-center gap-1.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-1.5">
               <span>{lang === 'ja' ? '単位のつながりルート' : 'Unit Connection Journey'}</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
               {/* Left: Ingredients */}
               <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
                   {lang === 'ja' ? '何からできているか (材料)' : 'Made from'}
                 </div>
                 {unit.kind === 'base' ? (
@@ -154,7 +154,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                     {lang === 'ja' ? '⭐ 根源となる7大基本単位' : '⭐ Fundamental SI Base Unit'}
                   </p>
                 ) : unit.kind === 'scale' ? (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     {lang === 'ja' ? '単位ではなく対数・階級の指標' : 'Logarithmic scale (No SI base units)'}
                   </p>
                 ) : ancestors.length > 0 ? (
@@ -169,14 +169,14 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200/80 dark:border-slate-600 font-medium text-xs shadow-2xs transition-all hover:scale-105 active:scale-95"
                       >
                         <span className="font-serif font-bold text-amber-600 dark:text-amber-400">{uSym(anc, lang)}</span>
-                        <span className="text-[10px] text-slate-500">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-400">
                           {exp < 0 ? `(÷)` : exp > 1 ? `(×${exp})` : ''}
                         </span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">{uConv(unit, lang) || '—'}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">{uConv(unit, lang) || '—'}</p>
                 )}
               </div>
 
@@ -185,14 +185,14 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                 <span className="font-serif font-bold text-lg text-amber-700 dark:text-amber-300 block">
                   {uSym(unit, lang)}
                 </span>
-                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 block">
                   {lang === 'ja' ? unit.name : unit.nameEn || unit.name}
                 </span>
               </div>
 
               {/* Right: What it makes */}
               <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
                   {lang === 'ja' ? '何をつくれるか (発展)' : 'Helps to Make'}
                 </div>
                 {descendants.length > 0 ? (
@@ -207,17 +207,17 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200/80 dark:border-slate-600 font-medium text-xs shadow-2xs transition-all hover:scale-105 active:scale-95"
                       >
                         <span className="font-serif font-bold text-emerald-600 dark:text-emerald-400">{uSym(desc, lang)}</span>
-                        <span className="text-[10px] text-slate-500 truncate max-w-[60px]">{uQty(desc, lang)}</span>
+                        <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate max-w-[60px]">{uQty(desc, lang)}</span>
                       </button>
                     ))}
                     {descendants.length > 6 && (
-                      <span className="text-[11px] text-slate-400 self-center">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 self-center">
                         +{descendants.length - 6}
                       </span>
                     )}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     {lang === 'ja' ? 'この単位を直接材料にする単位は帳にはありません' : 'No downstream units in collection'}
                   </p>
                 )}
@@ -228,10 +228,10 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
           {/* Section 2: Formulations / How it is built */}
           {unit.forms && unit.forms.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 flex items-center gap-1">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 <span>{lang === 'ja' ? '組み立て方・定義式' : 'How it is built'}</span>
                 {unit.forms.length > 1 && (
-                  <span className="text-[10px] font-normal text-amber-600">
+                  <span className="text-[11px] font-normal text-amber-600">
                     ({unit.forms.length} {lang === 'ja' ? '通り' : 'ways'})
                   </span>
                 )}
@@ -243,7 +243,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                     className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 flex items-center gap-2 flex-wrap text-base font-serif"
                   >
                     <span className="font-bold text-amber-600 dark:text-amber-400">{uSym(unit, lang)}</span>
-                    <Equal className="w-4 h-4 text-slate-400" />
+                    <Equal className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     {/* 式どおりだと係数が合わない単位（kWh = 10³ × W·h など）は係数を添える */}
                     {(() => {
                       const ratio =
@@ -282,14 +282,14 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
           {/* Section 3: SI Dimensions */}
           {unit.kind !== 'scale' && (
             <div className="space-y-1.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {lang === 'ja' ? 'SI基本単位・次元表現' : 'SI Base Units & Dimensions'}
               </h3>
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 flex items-baseline gap-3 flex-wrap">
                 <span className="font-serif font-bold text-lg text-slate-800 dark:text-slate-100">
                   {formatDimSI(dim, lang)}
                 </span>
-                <span className="font-mono text-sm text-slate-500 dark:text-slate-400">
+                <span className="font-mono text-sm text-slate-600 dark:text-slate-400">
                   {formatDimBrackets(dim)}
                 </span>
               </div>
@@ -299,7 +299,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
           {/* Section 4: Physical Formulas */}
           {unit.formulas && unit.formulas.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {lang === 'ja' ? 'この単位が登場する高校理科の公式' : 'High School Science Formulas'}
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -318,7 +318,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
           {/* Section 5: Same Dimension Twins */}
           {sameDimUnits.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {lang === 'ja' ? '同じ次元をもつ「ふたご」の単位' : 'Units Sharing Same Dimensions'}
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -346,7 +346,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
 
           {/* Section 7: Note & Conversion */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               {lang === 'ja' ? '探検メモ・一口解説' : 'Field Notes & Trivia'}
             </h3>
             <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">

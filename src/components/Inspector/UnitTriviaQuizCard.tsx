@@ -111,11 +111,11 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
           <div>
             <h3 className="text-xs font-black tracking-wide text-amber-900 dark:text-amber-200 uppercase flex items-center gap-1.5">
               <span>{lang === 'ja' ? '科学トリビア ＆ 意外な応用例' : 'Science Trivia & Surprising Applications'}</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
                 {uSym(unit, lang)}
               </span>
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               {lang === 'ja'
                 ? '単位にまつわる歴史の裏話や日常のハイテク応用を学ぶ'
                 : 'Discover historical anecdotes and cutting-edge tech applications'}
@@ -139,7 +139,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
             <HelpCircle className="w-3.5 h-3.5" />
             <span>{lang === 'ja' ? 'クイズ' : 'Quiz'}</span>
             {streak > 1 && (
-              <span className="text-[10px] px-1 py-0.2 rounded-full bg-amber-500 text-white font-extrabold animate-pulse">
+              <span className="text-[11px] px-1 py-0.2 rounded-full bg-amber-500 text-white font-extrabold animate-pulse">
                 {streak}🔥
               </span>
             )}
@@ -183,12 +183,12 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
           {/* Subheader: Category filter & Random trigger */}
           <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                 {lang === 'ja' ? 'テーマ:' : 'Topic:'}
               </span>
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-2 py-0.5 rounded-md font-medium text-[11px] transition-colors ${
+                className={`px-2 py-0.5 rounded-md font-medium text-xs transition-colors ${
                   selectedCategory === 'all'
                     ? 'bg-amber-500 text-white font-bold'
                     : 'bg-white/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-slate-700'
@@ -198,7 +198,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
               </button>
               <button
                 onClick={() => setSelectedCategory('history')}
-                className={`px-2 py-0.5 rounded-md font-medium text-[11px] transition-colors ${
+                className={`px-2 py-0.5 rounded-md font-medium text-xs transition-colors ${
                   selectedCategory === 'history'
                     ? 'bg-amber-500 text-white font-bold'
                     : 'bg-white/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-slate-700'
@@ -208,7 +208,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
               </button>
               <button
                 onClick={() => setSelectedCategory('application')}
-                className={`px-2 py-0.5 rounded-md font-medium text-[11px] transition-colors ${
+                className={`px-2 py-0.5 rounded-md font-medium text-xs transition-colors ${
                   selectedCategory === 'application'
                     ? 'bg-amber-500 text-white font-bold'
                     : 'bg-white/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-slate-700'
@@ -230,7 +230,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
           {/* Question Card Box */}
           <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-850 border border-amber-200/70 dark:border-slate-700/80 shadow-xs">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              <span className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                 {currentQuiz.category === 'history'
                   ? lang === 'ja'
                     ? '📜 科学の歴史トリビア'
@@ -239,7 +239,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
                   ? '💡 意外なハイテク応用'
                   : '💡 Unexpected Real-World Application'}
               </span>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Q. {((currentQuizIndex % Math.max(1, filteredQuizzes.length)) + 1)} / {filteredQuizzes.length}
               </span>
             </div>
@@ -265,7 +265,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
                     btnStyle =
                       'bg-rose-50 dark:bg-rose-950/60 border-rose-400 dark:border-rose-600 text-rose-800 dark:text-rose-200 line-through opacity-80';
                   } else {
-                    btnStyle = 'opacity-50 border-slate-200 dark:border-slate-800 text-slate-400';
+                    btnStyle = 'opacity-50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400';
                   }
                 }
 
@@ -279,7 +279,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
                     }`}
                   >
                     <span
-                      className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[11px] shrink-0 ${
+                      className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-xs shrink-0 ${
                         hasAnswered && isThisCorrect
                           ? 'bg-emerald-500 text-white'
                           : hasAnswered && isSelected
@@ -326,7 +326,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
                   </div>
                   <button
                     onClick={handleNextQuiz}
-                    className="text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-0.5"
+                    className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-0.5"
                   >
                     <span>{lang === 'ja' ? '次の問題へ' : 'Next Question'}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -339,7 +339,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
 
                 {/* Extra Trivia Fact Nugget */}
                 {(currentQuiz.triviaFactJa || currentQuiz.triviaFactEn) && (
-                  <div className="mt-2.5 pt-2 border-t border-amber-200/50 dark:border-slate-700/60 flex items-start gap-1.5 text-[11px] text-amber-800 dark:text-amber-300">
+                  <div className="mt-2.5 pt-2 border-t border-amber-200/50 dark:border-slate-700/60 flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
                     <span className="shrink-0 font-bold">✨ {lang === 'ja' ? '豆知識:' : 'Did you know?'}</span>
                     <span className="leading-relaxed">
                       {lang === 'ja' ? currentQuiz.triviaFactJa : currentQuiz.triviaFactEn}
@@ -357,11 +357,11 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
         <div className="pt-3.5 space-y-3 animate-in fade-in duration-200">
           <div className="p-4 rounded-xl bg-white dark:bg-slate-850 border border-amber-200/70 dark:border-slate-700 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                 📜 {lang === 'ja' ? '科学の歴史トリビア' : 'Science History Trivia'}
               </span>
               {lang === 'ja' && triviaBundle.historyTrivia.era && (
-                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                   ⏳ {triviaBundle.historyTrivia.era}
                 </span>
               )}
@@ -372,7 +372,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
             </h4>
 
             {lang === 'ja' && triviaBundle.historyTrivia.scientist && (
-              <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-2.5 flex items-center gap-1">
+              <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2.5 flex items-center gap-1">
                 <span>👤 {lang === 'ja' ? '関連科学者:' : 'Key Scientist:'}</span>
                 <span>{triviaBundle.historyTrivia.scientist}</span>
               </div>
@@ -410,7 +410,7 @@ export const UnitTriviaQuizCard: React.FC<UnitTriviaQuizCardProps> = ({ unit, la
                   <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100">
                     {lang === 'ja' ? app.title : app.titleEn}
                   </h4>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                     {lang === 'ja' ? app.realWorldContext : app.realWorldContextEn}
                   </span>
                 </div>

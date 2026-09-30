@@ -30,6 +30,16 @@
 }
 
 
+/* スマホ・タブレットの下のタブバーの高さ（固定表示のパネルはこの上に出す） */
+:root {
+  --tabbar-h: calc(4rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 1280px) {
+  :root {
+    --tabbar-h: 0px;
+  }
+}
+
 @layer base {
   body {
     font-family: 'Zen Kaku Gothic New', 'Plus Jakarta Sans', sans-serif;

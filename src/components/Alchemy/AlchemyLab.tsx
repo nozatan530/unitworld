@@ -262,7 +262,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
         </span>
         <button
           onClick={() => flipPiece(id)}
-          className="p-1 rounded-md text-slate-400 hover:text-cyan-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+          className="p-1 rounded-md text-slate-500 dark:text-slate-400 hover:text-cyan-600 hover:bg-slate-100 dark:hover:bg-slate-700"
           title={ja ? '分子と分母を入れかえる' : 'Move to the other side'}
           aria-label={ja ? `${uSym(u, lang)} を反対側へ` : `Move ${uSym(u, lang)} to the other side`}
         >
@@ -270,7 +270,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
         </button>
         <button
           onClick={() => removePiece(id)}
-          className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+          className="p-1 rounded-md text-slate-500 dark:text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-700"
           title={ja ? '取り出す' : 'Remove'}
           aria-label={ja ? `${uSym(u, lang)} を取り出す` : `Remove ${uSym(u, lang)}`}
         >
@@ -291,23 +291,23 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
             </span>
             {target ? (
               <div className="min-w-0">
-                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{ja ? '目標' : 'Target'}</div>
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400">{ja ? '目標' : 'Target'}</div>
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span className="font-serif font-black text-2xl text-cyan-700 dark:text-cyan-300 whitespace-nowrap">
                     {uSym(target, lang)}
                   </span>
                   <span className="font-bold text-slate-800 dark:text-slate-100">{uName(target, lang)}</span>
-                  <span className="text-xs text-slate-500">{uQty(target, lang)}</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">{uQty(target, lang)}</span>
                   {completedTargets.has(target.id) && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-serif">
+                <div className="text-xs text-slate-600 dark:text-slate-400 font-serif">
                   = {formatDimSI(getUnitDim(target), lang)}
                 </div>
               </div>
             ) : (
               <div>
                 <div className="font-bold text-slate-800 dark:text-slate-100">{ja ? '目標なし（自由に錬成）' : 'No target (free play)'}</div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-600 dark:text-slate-400">
                   {ja ? '単位をかけたりわったりして、何ができるか試してみよう。' : 'Multiply and divide units to see what you can make.'}
                 </div>
               </div>
@@ -354,9 +354,9 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
         {/* あと何が足りないか */}
         {target && (
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-slate-500 dark:text-slate-400 mr-1">{ja ? 'ヒント：' : 'Hint:'}</span>
+            <span className="text-slate-600 dark:text-slate-400 mr-1">{ja ? 'ヒント：' : 'Hint:'}</span>
             {!hasItems ? (
-              <span className="text-slate-500">{ja ? '材料を入れると、目標まであと何が足りないかが出ます。' : 'Add ingredients to see what is still missing.'}</span>
+              <span className="text-slate-600 dark:text-slate-400">{ja ? '材料を入れると、目標まであと何が足りないかが出ます。' : 'Add ingredients to see what is still missing.'}</span>
             ) : targetDone ? (
               <span className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold">
                 {ja ? `できた！ ${uSym(target, lang)} になりました` : `Done! This is ${uSym(target, lang)}`}
@@ -393,7 +393,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
               {hasItems && (
                 <button
                   onClick={clearFlask}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {ja ? '空にする' : 'Empty'}
@@ -406,9 +406,9 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
                 {numItems.length ? (
                   numItems.map(piece)
                 ) : denItems.length ? (
-                  <span className="font-serif font-bold text-xl text-slate-500">1</span>
+                  <span className="font-serif font-bold text-xl text-slate-600 dark:text-slate-400">1</span>
                 ) : (
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     {ja ? '材料の「× かける」で、ここ（分子）に入ります' : '“× multiply” puts a unit here (top)'}
                   </span>
                 )}
@@ -418,7 +418,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
                 {denItems.length ? (
                   denItems.map(piece)
                 ) : (
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     {ja ? '「÷ わる」で、ここ（分母）に入ります' : '“÷ divide” puts a unit here (bottom)'}
                   </span>
                 )}
@@ -427,7 +427,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
 
             {/* 結果 */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400">
                 <span>{ja ? 'SI基本単位で書くと' : 'In SI base units'}</span>
                 {hasItems && <span className="font-mono">{formatDimBrackets(currentDim)}</span>}
               </div>
@@ -453,7 +453,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
                         <span className="font-serif font-black text-lg text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(m, lang)}</span>
                         <span className="text-xs">
                           <span className="font-bold text-slate-800 dark:text-slate-100 block leading-tight">{uName(m, lang)}</span>
-                          <span className="text-[10px] text-slate-500">{uQty(m, lang)}</span>
+                          <span className="text-[11px] text-slate-600 dark:text-slate-400">{uQty(m, lang)}</span>
                         </span>
                         <button
                           onClick={() => setSuccessCelebration({ unit: m, formulaDesc: formulaDesc() })}
@@ -489,7 +489,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
                         className="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-cyan-400"
                       >
                         <span className="font-serif font-bold">{uSym(u, lang)}</span>
-                        <span className="text-[10px] text-slate-500 ml-1">{uQty(u, lang)}</span>
+                        <span className="text-[11px] text-slate-600 dark:text-slate-400 ml-1">{uQty(u, lang)}</span>
                       </button>
                     ))}
                   </div>
@@ -501,26 +501,26 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
 
         {/* ===== 3. 材料（スマホでは画面下から引き出すパネル） ===== */}
         <section
-          className={`lg:col-span-5 lg:order-1 fixed lg:static inset-x-0 bottom-0 z-30 lg:z-auto bg-white dark:bg-slate-900 border-t lg:border border-slate-200 dark:border-slate-800 rounded-t-3xl lg:rounded-3xl shadow-[0_-8px_24px_rgba(15,23,42,0.12)] lg:shadow-sm p-3 sm:p-4 flex flex-col ${
+          className={`lg:col-span-5 lg:order-1 fixed lg:static inset-x-0 bottom-(--tabbar-h) z-30 lg:z-auto bg-white dark:bg-slate-900 border-t lg:border border-slate-200 dark:border-slate-800 rounded-t-3xl lg:rounded-3xl shadow-[0_-8px_24px_rgba(15,23,42,0.12)] lg:shadow-sm p-3 sm:p-4 flex flex-col ${
             sheetOpen ? 'max-h-[48vh]' : 'max-h-[5.5rem]'
           } lg:max-h-none overflow-hidden`}
         >
           <button
             onClick={() => setSheetOpen(!sheetOpen)}
-            className="lg:hidden shrink-0 flex items-center justify-center gap-1 -mt-1 mb-1 text-xs font-bold text-slate-500"
+            className="lg:hidden shrink-0 flex items-center justify-center gap-1 -mt-1 mb-1 text-xs font-bold text-slate-600 dark:text-slate-400"
           >
             {sheetOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             {ja ? '材料' : 'Ingredients'}
           </button>
           {/* スマホ：フラスコが隠れても中身がわかるよう、1行で表示する */}
           <div className="lg:hidden shrink-0 flex items-center gap-2 mb-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-            <span className="text-slate-500 shrink-0">⚗️</span>
+            <span className="text-slate-600 dark:text-slate-400 shrink-0">⚗️</span>
             <span className="font-serif font-bold text-slate-800 dark:text-slate-100 truncate">
               {hasItems ? formulaDesc() : ja ? '空のフラスコ' : 'Empty flask'}
             </span>
             {hasItems && (
               <>
-                <span className="text-slate-400 shrink-0">=</span>
+                <span className="text-slate-500 dark:text-slate-400 shrink-0">=</span>
                 <span className="font-serif text-slate-600 dark:text-slate-300 truncate">{formatDimSI(currentDim, lang)}</span>
               </>
             )}
@@ -531,7 +531,7 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
           </div>
 
           <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm mb-2">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <Search className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -576,12 +576,12 @@ export const AlchemyLab: React.FC<AlchemyLabProps> = ({
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-serif font-bold text-base text-slate-800 dark:text-slate-100 whitespace-nowrap">{uSym(u, lang)}</span>
                       {count ? (
-                        <span className="text-[10px] font-bold px-1.5 rounded-full bg-cyan-600 text-white">
+                        <span className="text-[11px] font-bold px-1.5 rounded-full bg-cyan-600 text-white">
                           {count > 0 ? `×${count}` : `÷${-count}`}
                         </span>
                       ) : null}
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{uQty(u, lang)}</div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400 truncate">{uQty(u, lang)}</div>
                   </button>
                   <div className="grid grid-cols-2 gap-1">
                     <button

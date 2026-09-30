@@ -231,7 +231,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
             <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100">
               {lang === 'ja' ? '単位アドベンチャークイズ' : 'Unit Adventure Quiz'}
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               {lang === 'ja'
                 ? '全10問。記号当て・基本単位への分解・掛け算割り算の合成など、単位のつながりを楽しく力試し！'
                 : '10 Questions. Test your intuition for science symbols, SI dimensions, and formula combinations!'}
@@ -240,7 +240,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
 
           {/* Subject Filter Pills */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wider">
               {lang === 'ja' ? '出題教科の選択' : 'Choose Subject'}
             </label>
             <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -298,7 +298,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
               {lang === 'ja' ? 'クイズ完了！' : 'Quiz Complete!'}
             </h2>
             <div className="font-serif font-black text-5xl text-amber-600 dark:text-amber-400 my-3">
-              {score} <span className="text-xl text-slate-400 font-sans font-normal">/ 10</span>
+              {score} <span className="text-xl text-slate-500 dark:text-slate-400 font-sans font-normal">/ 10</span>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-300">
               {isPerfect
@@ -345,7 +345,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
           <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
             {q.type}
           </span>
-          <span className="text-xs font-mono text-slate-400">
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
             Q{currentIndex + 1} / {questions.length}
           </span>
         </div>
@@ -392,7 +392,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-white dark:bg-slate-700 font-sans font-bold text-xs flex items-center justify-center text-slate-400 shrink-0">
+                  <span className="w-6 h-6 rounded-full bg-white dark:bg-slate-700 font-sans font-bold text-xs flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
                     {'ABCD'[idx]}
                   </span>
                   <span>{opt.text}</span>
@@ -426,7 +426,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
                   sounds.playPop();
                   onSelectUnit(q.unit);
                 }}
-                className="text-[11px] font-bold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1"
+                className="text-xs font-bold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1"
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>{lang === 'ja' ? 'この単位の図鑑を見る' : 'View in Index'}</span>
