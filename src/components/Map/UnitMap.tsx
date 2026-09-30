@@ -1,795 +1,717 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import {
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  Search,
-  Route,
-  ChevronRight,
-} from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import { Search, Route, ChevronRight, Compass, X, BookOpen, GitBranch, CheckCircle2, Layers, LayoutGrid } from 'lucide-react';
 import { UnitDefinition } from '../../types/unit';
-import {
-  REALMS,
-  RAW_UNITS,
-  MAP_LINKS,
-  unitsById,
-  getAncestors,
-  getDescendants,
-  getUnitDim,
-  formatDimSI,
-  WORLD_SIZE,
-} from '../../data/unitsData';
-import { uSym, uName, uQty, realmName, unitSearchText, bySymLength } from '../../utils/i18n';
+import { REALMS, RAW_UNITS, MAP_LINKS, unitsById } from '../../data/unitsData';
+import { BUILD_COLUMNS, FIELD_GROUPS, MEMBERS, hostOf, realmById } from '../../data/mapLayout';
+import { TARGET_UNITS, getCraftedUnits } from '../../data/crafting';
+import { uSym, uName, uQty, uConv, realmName, realmDesc, unitSearchText, bySymLength } from '../../utils/i18n';
+import { prefersReducedMotion } from '../../utils/motion';
 import { sounds } from '../../utils/sound';
 
 interface UnitMapProps {
   onSelectUnit: (unit: UnitDefinition) => void;
   selectedUnit: UnitDefinition | null;
   focusedUnit: UnitDefinition | null;
+  onOpenTree: (unitId: string) => void;
   lang: 'ja' | 'en';
   isDark?: boolean;
 }
 
-// 画面に地図全体が収まる倍率と位置
-const fitWorld = (rect: DOMRect) => {
-  const s = Math.max(0.14, Math.min((rect.width - 32) / WORLD_SIZE.width, (rect.height - 120) / WORLD_SIZE.height, 0.9));
-  return { scale: s, pan: { x: (rect.width - WORLD_SIZE.width * s) / 2, y: 70 + (rect.height - 70 - WORLD_SIZE.height * s) / 2 } };
-};
-
-// 単位の枠：記号の長さから幅を決める（漢字は1文字分、英数字は約0.58文字分）
-const SYM_FONT = 18;
-const nodeBox = (u: UnitDefinition, lang: 'ja' | 'en') => {
-  const sym = uSym(u, lang);
-  const width = [...sym].reduce((w, ch) => w + (/[\u3040-\u9fff]/.test(ch) ? 1.0 : 0.6), 0) * SYM_FONT;
-  return { w: Math.max(52, Math.round(width + 24)), h: 44 };
-};
-// 枠の中心から (tx, ty) へ向かう線が枠と交わる点（gap だけ外側）
-const edgePoint = (u: UnitDefinition, tx: number, ty: number, lang: 'ja' | 'en', gap: number): [number, number] => {
-  const { w, h } = nodeBox(u, lang);
-  const dx = tx - u.x;
-  const dy = ty - u.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const t = Math.min(dx !== 0 ? (w / 2) / Math.abs(dx) : Infinity, dy !== 0 ? (h / 2) / Math.abs(dy) : Infinity);
-  return [u.x + dx * t + (dx / len) * gap, u.y + dy * t + (dy / len) * gap];
-};
+type View = 'build' | 'field';
 
 // ラベルは括弧の補足を省き、長いものだけ切る
 const shortQty = (q: string, lang: 'ja' | 'en') => {
   const base = q.split(/\s*[（(]/)[0].split(/[・,]/)[0];
-  const max = lang === 'ja' ? 8 : 16;
+  const max = lang === 'ja' ? 6 : 12;
   return base.length > max ? base.slice(0, max - 1) + '…' : base;
 };
 
-export const UnitMap: React.FC<UnitMapProps> = ({
-  onSelectUnit,
-  selectedUnit,
-  focusedUnit,
-  lang,
-  isDark = false,
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState<number>(0.75);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: -280, y: -220 });
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [hoveredUnitId, setHoveredUnitId] = useState<string | null>(null);
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+const supNum = (n: number) => (n === 1 ? '' : String(n).split('').map((c) => SUP[+c]).join(''));
 
-  // Filters & Modes
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [showPathFinder, setShowPathFinder] = useState<boolean>(false);
-  const [pathStart, setPathStart] = useState<string>('kg');
-  const [pathEnd, setPathEnd] = useState<string>('V');
+// 組み立て方を「kg × m ÷ s²」の形で
+const recipeText = (u: UnitDefinition, lang: 'ja' | 'en') => {
+  const form = u.forms?.[0];
+  if (!form) return '';
+  return form
+    .map(([id, exp], i) => {
+      const s = uSym(unitsById[id], lang) + supNum(Math.abs(exp));
+      if (exp > 0) return i === 0 ? s : `× ${s}`;
+      return i === 0 ? `1 ÷ ${s}` : `÷ ${s}`;
+    })
+    .join(' ');
+};
 
-  // Smooth camera zoom/fly to coordinate
-  const flyTo = useCallback((targetX: number, targetY: number, targetScale = 1.1) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const newPanX = rect.width / 2 - targetX * targetScale;
-    const newPanY = rect.height / 2 - targetY * targetScale;
-    setScale(targetScale);
-    setPan({ x: newPanX, y: newPanY });
-  }, []);
+const TARGET_IDS = new Set(TARGET_UNITS.map((u) => u.id));
 
-  // When focusedUnit changes from outside (e.g. from Detail drawer or Catalog)
-  useEffect(() => {
-    if (focusedUnit) {
-      flyTo(focusedUnit.x, focusedUnit.y, 1.15);
+// 線の色（ツリー図と同じ決まり：実線＝かける、点線＝わる）
+const EDGE_COLOR = { in: '#0284C7', out: '#059669', route: '#0891B2' } as const;
+
+interface Edge {
+  id: string;
+  d: string;
+  kind: 'in' | 'out' | 'route';
+  dash: string;
+  label?: string;
+  lx: number;
+  ly: number;
+}
+
+export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, focusedUnit, onOpenTree, lang, isDark = false }) => {
+  const ja = lang === 'ja';
+  const contentRef = useRef<HTMLDivElement>(null);
+  const nodeEls = useRef(new Map<string, HTMLElement>());
+
+  const [view, setView] = useState<View>(() => {
+    try {
+      return localStorage.getItem('unit_map_view') === 'field' ? 'field' : 'build';
+    } catch {
+      return 'build';
     }
-  }, [focusedUnit, flyTo]);
+  });
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [realmFilter, setRealmFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showRoute, setShowRoute] = useState(false);
+  const [routeStart, setRouteStart] = useState('kg');
+  const [routeEnd, setRouteEnd] = useState('V');
+  const [edges, setEdges] = useState<Edge[]>([]);
+  const [layoutTick, setLayoutTick] = useState(0);
+  const crafted = useMemo(() => getCraftedUnits(), []);
 
-  // Initial centering
-  useEffect(() => {
-    if (containerRef.current) {
-      const fit = fitWorld(containerRef.current.getBoundingClientRect());
-      setScale(fit.scale);
-      setPan(fit.pan);
-    }
-  }, []);
-
-  // Pan interaction
-  const handleMouseDown = (e: React.PointerEvent) => {
-    // Only drag with primary mouse button (touch and pen report button 0)
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-  };
-
-  const handleMouseMove = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // Zoom with wheel
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-    const newScale = Math.min(Math.max(0.14, scale * zoomFactor), 2.5);
-
-    // Zoom centered on cursor
-    const newPanX = mouseX - (mouseX - pan.x) * (newScale / scale);
-    const newPanY = mouseY - (mouseY - pan.y) * (newScale / scale);
-
-    setScale(newScale);
-    setPan({ x: newPanX, y: newPanY });
-  };
-
-  // Reset camera
-  const handleResetCamera = () => {
+  const changeView = (v: View) => {
     sounds.playClick();
-    if (containerRef.current) {
-      const fit = fitWorld(containerRef.current.getBoundingClientRect());
-      setScale(fit.scale);
-      setPan(fit.pan);
-    }
+    setView(v);
+    try {
+      localStorage.setItem('unit_map_view', v);
+    } catch {}
   };
 
-  // Active unit for highlighting: prioritize selectedUnit, fallback to hoveredUnitId
-  const activeUnitId = selectedUnit ? selectedUnit.id : hoveredUnitId;
-  const activeUnit = activeUnitId ? unitsById[activeUnitId] : null;
-
-  // Compute related units for active unit
-  const activeRelated = useMemo(() => {
-    if (!activeUnit) return null;
-    const incoming = new Set<string>();
-    const outgoing = new Set<string>();
-
-    const ancestors = getAncestors(activeUnit);
-    ancestors.forEach((a) => incoming.add(a.unit.id));
-
-    const descendants = getDescendants(activeUnit);
-    descendants.forEach((d) => outgoing.add(d.id));
-
-    // Also collect from explicit links
-    MAP_LINKS.forEach((l) => {
-      if (l.target === activeUnit.id) incoming.add(l.source);
-      if (l.source === activeUnit.id) outgoing.add(l.target);
+  const scrollToUnit = useCallback((id: string) => {
+    requestAnimationFrame(() => {
+      nodeEls.current.get(id)?.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'center',
+        inline: 'center',
+      });
     });
+  }, []);
 
-    return { incoming, outgoing };
-  }, [activeUnit]);
+  const focusUnit = useCallback(
+    (id: string, scroll = false) => {
+      setFocusId(id);
+      setShowRoute(false);
+      if (scroll) scrollToUnit(id);
+    },
+    [scrollToUnit]
+  );
 
-  // BFS Path Finder
-  const calculatedPath = useMemo(() => {
-    if (!showPathFinder || !pathStart || !pathEnd || pathStart === pathEnd) return null;
+  // ほかの画面（図鑑・詳細）から「地図で見る」で来たとき
+  useEffect(() => {
+    if (focusedUnit) focusUnit(focusedUnit.id, true);
+  }, [focusedUnit, focusUnit]);
 
-    // Adjacency graph
+  // 詳細画面で別の単位へ移ったら、閉じたあともその単位を選んだままにする
+  useEffect(() => {
+    if (selectedUnit) setFocusId(selectedUnit.id);
+  }, [selectedUnit]);
+
+  // Escape で選択を外す
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !selectedUnit) setFocusId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedUnit]);
+
+  // 画面の大きさが変わったら線を引き直す
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setLayoutTick((t) => t + 1));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // つながり探索（組み立て方・換算の向きにたどる最短ルート）
+  const route = useMemo(() => {
+    if (!showRoute || routeStart === routeEnd) return null;
     const adj: Record<string, string[]> = {};
-    RAW_UNITS.forEach((u) => {
-      adj[u.id] = [];
-    });
-    MAP_LINKS.forEach((l) => {
-      if (!adj[l.source]) adj[l.source] = [];
-      adj[l.source].push(l.target);
-    });
-
-    // BFS queue
-    const queue: Array<{ id: string; path: string[] }> = [{ id: pathStart, path: [pathStart] }];
-    const visited = new Set<string>([pathStart]);
-
-    while (queue.length > 0) {
-      const curr = queue.shift()!;
-      if (curr.id === pathEnd) {
-        return curr.path;
-      }
-      for (const nextId of adj[curr.id] || []) {
-        if (!visited.has(nextId)) {
-          visited.add(nextId);
-          queue.push({ id: nextId, path: [...curr.path, nextId] });
+    MAP_LINKS.forEach((l) => (adj[l.source] = adj[l.source] || []).push(l.target));
+    const queue: string[][] = [[routeStart]];
+    const visited = new Set([routeStart]);
+    while (queue.length) {
+      const path = queue.shift()!;
+      const cur = path[path.length - 1];
+      if (cur === routeEnd) return path;
+      for (const n of adj[cur] || []) {
+        if (!visited.has(n)) {
+          visited.add(n);
+          queue.push([...path, n]);
         }
       }
     }
     return null;
-  }, [showPathFinder, pathStart, pathEnd]);
+  }, [showRoute, routeStart, routeEnd]);
 
-  const pathEdgeSet = useMemo(() => {
-    if (!calculatedPath || calculatedPath.length < 2) return new Set<string>();
-    const set = new Set<string>();
-    for (let i = 0; i < calculatedPath.length - 1; i++) {
-      set.add(`${calculatedPath[i]}->${calculatedPath[i + 1]}`);
+  const activeId = showRoute ? null : focusId ?? hoverId;
+  const active = activeId ? unitsById[activeId] : null;
+
+  const related = useMemo(() => {
+    if (!activeId) return null;
+    const incoming = MAP_LINKS.filter((l) => l.target === activeId);
+    const outgoing = MAP_LINKS.filter((l) => l.source === activeId);
+    return {
+      incoming,
+      outgoing,
+      inIds: new Set(incoming.map((l) => l.source)),
+      outIds: new Set(outgoing.map((l) => l.target)),
+    };
+  }, [activeId]);
+
+  const routeIds = useMemo(() => new Set(route || []), [route]);
+
+  // 線：DOM 上の単位の位置から、その時だけ引く（全部の線を一度に出すと読めなくなるため）
+  useLayoutEffect(() => {
+    const box = contentRef.current;
+    const pairs: Array<{ from: string; to: string; kind: Edge['kind']; op: string; exp?: number }> = [];
+    if (route) {
+      for (let i = 0; i < route.length - 1; i++) {
+        const l = MAP_LINKS.find((m) => m.source === route[i] && m.target === route[i + 1]);
+        pairs.push({ from: route[i], to: route[i + 1], kind: 'route', op: l?.op || 'mul' });
+      }
+    } else if (related && activeId) {
+      const exps: Record<string, number> = {};
+      unitsById[activeId].forms?.[0]?.forEach(([id, e]) => (exps[id] = e));
+      related.incoming.forEach((l) => pairs.push({ from: l.source, to: activeId, kind: 'in', op: l.op, exp: exps[l.source] }));
+      // 作れる単位への線は、狭い画面や数が多いとき（m・s など）は引かず、枠の色だけで示す
+      const narrow = window.matchMedia('(max-width: 767px)').matches;
+      if (!narrow && related.outgoing.length <= 10)
+        related.outgoing.forEach((l) => pairs.push({ from: activeId, to: l.target, kind: 'out', op: l.op }));
     }
-    return set;
-  }, [calculatedPath]);
+    if (!box || pairs.length === 0) {
+      setEdges([]);
+      return;
+    }
+    const origin = box.getBoundingClientRect();
+    const rectOf = (id: string) => {
+      const el = nodeEls.current.get(id);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      // 横にスクロールしても線がずれないよう、中身の左上を原点にする
+      return { x: r.left - origin.left + box.scrollLeft, y: r.top - origin.top + box.scrollTop, w: r.width, h: r.height };
+    };
+    const out: Edge[] = [];
+    for (const p of pairs) {
+      // 同じ単位の「なかま」（m と cm など）は並んで見えているので線を引かない
+      if (view === 'build' && hostOf(p.from) === hostOf(p.to)) continue;
+      const a = rectOf(p.from);
+      const b = rectOf(p.to);
+      if (!a || !b) continue;
+      let x1, y1, x2, y2, c1x, c1y, c2x, c2y;
+      const G = 3;
+      if (b.x >= a.x + a.w - 2 || a.x >= b.x + b.w - 2) {
+        const right = b.x >= a.x + a.w - 2;
+        x1 = right ? a.x + a.w : a.x;
+        x2 = right ? b.x - G : b.x + b.w + G;
+        y1 = a.y + a.h / 2;
+        y2 = b.y + b.h / 2;
+        const c = Math.max(24, Math.abs(x2 - x1) / 2) * (right ? 1 : -1);
+        [c1x, c1y, c2x, c2y] = [x1 + c, y1, x2 - c, y2];
+      } else {
+        const down = b.y >= a.y;
+        x1 = a.x + a.w / 2;
+        x2 = b.x + b.w / 2;
+        y1 = down ? a.y + a.h : a.y;
+        y2 = down ? b.y - G : b.y + b.h + G;
+        const c = Math.max(20, Math.abs(y2 - y1) / 2) * (down ? 1 : -1);
+        [c1x, c1y, c2x, c2y] = [x1, y1 + c, x2, y2 - c];
+      }
+      const lx = (x1 + 3 * c1x + 3 * c2x + x2) / 8;
+      const ly = (y1 + 3 * c1y + 3 * c2y + y2) / 8;
+      const isConv = p.op === 'conv' || p.op === 'log';
+      let label: string | undefined;
+      if (p.kind === 'in' || p.kind === 'route') {
+        if (isConv) label = p.op === 'conv' ? (ja ? '換算' : 'conv.') : ja ? '目安' : 'scale';
+        else if (p.exp !== undefined) label = (p.exp > 0 ? '×' : '÷') + supNum(Math.abs(p.exp));
+        else label = p.op === 'div' ? '÷' : '×';
+      }
+      out.push({
+        id: `${p.from}->${p.to}`,
+        d: `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
+        kind: p.kind,
+        dash: isConv ? '2 5' : p.op === 'div' ? '7 5' : '',
+        label,
+        lx,
+        ly,
+      });
+    }
+    setEdges(out);
+  }, [related, activeId, route, view, lang, layoutTick, ja]);
 
-  // Handle Search input
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
-    return RAW_UNITS.filter((u) => unitSearchText(u).includes(q)).slice(0, 5);
+    return q ? RAW_UNITS.filter((u) => unitSearchText(u).includes(q)).slice(0, 6) : [];
   }, [searchQuery]);
 
-  const handleSelectSearchResult = (unit: UnitDefinition) => {
+  const tapUnit = (u: UnitDefinition) => {
     sounds.playPop();
-    setSearchQuery('');
-    flyTo(unit.x, unit.y, 1.2);
-    onSelectUnit(unit);
+    if (focusId === u.id) onSelectUnit(u);
+    else focusUnit(u.id);
   };
 
-  return (
-    <div className="relative w-full h-full overflow-hidden select-none bg-[#F6F8FA] dark:bg-[#0B1015]">
-      {/* Background World Grid */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-40 dark:opacity-20"
-        style={{
-          backgroundImage:
-            'radial-gradient(#94A3B8 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }}
-      />
+  // 単位のボタン（大きい＝ふつうの単位、小さい＝換算・目盛りのなかま）
+  const renderUnit = (u: UnitDefinition, small = false) => {
+    const realm = realmById[u.realmId];
+    const isActive = activeId === u.id;
+    const isIn = related?.inIds.has(u.id);
+    const isOut = related?.outIds.has(u.id);
+    const inRoute = routeIds.has(u.id);
+    const dimmed =
+      (route && !inRoute) ||
+      (!route && activeId && !isActive && !isIn && !isOut) ||
+      (!route && !activeId && realmFilter && u.realmId !== realmFilter);
+    const isBase = u.kind === 'base';
+    const isScale = u.kind === 'scale';
+    const done = crafted.has(u.id);
 
-      {/* Top Floating Controls Bar */}
-      <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Left: Island Realm Teleports */}
-        <div className="flex items-center gap-1 p-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl shadow-md border border-amber-200/60 dark:border-slate-800 pointer-events-auto overflow-x-auto max-w-[85vw] sm:max-w-none scrollbar-none">
-          <span className="text-xs font-bold px-2 py-1 text-slate-400 dark:text-slate-500 whitespace-nowrap">
-            {lang === 'ja' ? '🗺️ 地域ワープ:' : '🗺️ Islands:'}
-          </span>
-          {REALMS.map((r) => (
+    let tone = isBase
+      ? 'border-slate-500 dark:border-slate-400 border-2 bg-white dark:bg-slate-800'
+      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800';
+    if (small) tone = isScale ? 'border-dashed border-stone-400 bg-stone-50 dark:bg-stone-900/60' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70';
+    if (isActive) tone = 'border-2 border-sky-600 bg-sky-50 dark:bg-sky-950 ring-4 ring-sky-500/20';
+    else if (inRoute) tone = 'border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950';
+    else if (isIn) tone = 'border-2 border-sky-500 bg-sky-50 dark:bg-sky-950/70';
+    else if (isOut) tone = 'border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/70';
+
+    const label = `${uSym(u, lang)} ${uName(u, lang)}（${uQty(u, lang)}）`;
+    const refCb = (el: HTMLButtonElement | null) => {
+      if (el) nodeEls.current.set(u.id, el);
+      else nodeEls.current.delete(u.id);
+    };
+    const common = {
+      ref: refCb,
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        tapUnit(u);
+      },
+      onMouseEnter: () => setHoverId(u.id),
+      onMouseLeave: () => setHoverId((h) => (h === u.id ? null : h)),
+      'aria-pressed': focusId === u.id,
+      title: label,
+    };
+
+    if (small) {
+      return (
+        <button
+          key={u.id}
+          {...common}
+          className={`relative z-10 min-h-7 px-2 py-0.5 rounded-lg border font-serif font-bold text-[13px] leading-none text-slate-700 dark:text-slate-200 whitespace-nowrap transition-opacity ${tone} ${dimmed ? 'opacity-30' : ''}`}
+        >
+          {uSym(u, lang)}
+        </button>
+      );
+    }
+    return (
+      <button
+        key={u.id}
+        {...common}
+        className={`relative z-10 flex flex-col items-center justify-center min-w-[72px] w-full min-h-[50px] pl-3 pr-2 py-1.5 rounded-xl border shadow-xs hover:shadow-md transition-[opacity,box-shadow] ${tone} ${dimmed ? 'opacity-30' : ''}`}
+      >
+        <span aria-hidden className="absolute left-1 top-2 bottom-2 w-1 rounded-full" style={{ background: realm?.color }} />
+        <span className={`font-serif font-bold leading-tight text-slate-800 dark:text-slate-100 whitespace-nowrap ${bySymLength(uSym(u, lang), 'text-[17px]', 'text-[15px]', 'text-[13px]')}`}>{uSym(u, lang)}</span>
+        <span className="max-w-full truncate text-[10px] leading-tight text-slate-500 dark:text-slate-400">{shortQty(uQty(u, lang), lang)}</span>
+        {done && (
+          <CheckCircle2 aria-label={ja ? 'ラボで作れた' : 'crafted'} className="absolute -top-1.5 -right-1.5 w-4 h-4 text-emerald-500 bg-white dark:bg-slate-900 rounded-full" />
+        )}
+      </button>
+    );
+  };
+
+  // 単位＋なかま（cm・mm…）のまとまり
+  const renderGroup = (u: UnitDefinition) => {
+    const members = (MEMBERS[u.id] || []).map((id) => unitsById[id]);
+    return (
+      <div key={u.id} className="flex flex-col gap-1 min-w-0">
+        {renderUnit(u)}
+        {members.length > 0 && <div className="flex flex-wrap gap-1 pl-1">{members.map((m) => renderUnit(m, true))}</div>}
+      </div>
+    );
+  };
+
+  const craftedCount = TARGET_UNITS.filter((u) => crafted.has(u.id)).length;
+  const focus = focusId && !showRoute ? unitsById[focusId] : null;
+
+  const stepTitle = (d: number) => (d === 0 ? (ja ? '基本単位' : 'Base units') : ja ? `${d}段目` : `Step ${d}`);
+
+  return (
+    <div className={`max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-6 space-y-4 ${focus ? 'pb-56 sm:pb-44' : ''}`} onClick={() => setFocusId(null)}>
+      {/* 見出し（ツリー図と同じ形） */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center shrink-0">
+            <Compass className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight">{ja ? 'ワールドマップ' : 'World Map'}</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {view === 'build'
+                ? ja
+                  ? `${RAW_UNITS.length}の単位を、7つの基本単位から組み立てられる順に並べた全体図です。`
+                  : `All ${RAW_UNITS.length} units, in the order they are built from the seven base units.`
+                : ja
+                ? `${RAW_UNITS.length}の単位を、教科書の分野ごとに並べています。`
+                : `All ${RAW_UNITS.length} units, grouped by textbook topic.`}
+            </p>
+          </div>
+        </div>
+        <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          {ja ? '作れた単位' : 'Crafted'} <span className="font-serif font-bold text-base text-cyan-700 dark:text-cyan-300">{craftedCount}</span> / {TARGET_UNITS.length}
+        </div>
+      </div>
+
+      {/* 操作：並べ方・検索・つながり探索 */}
+      <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div role="group" aria-label={ja ? '並べ方' : 'Layout'} className="flex p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800">
+          {([
+            { id: 'build', icon: <Layers className="w-4 h-4" />, ja: '組み立て順', en: 'By build step' },
+            { id: 'field', icon: <LayoutGrid className="w-4 h-4" />, ja: '分野別', en: 'By topic' },
+          ] as const).map((o) => (
             <button
-              key={r.id}
-              onClick={() => {
-                sounds.playPop(520);
-                flyTo(r.x + r.width / 2, r.y + r.height / 2, 0.95);
-              }}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+              key={o.id}
+              onClick={() => changeView(o.id)}
+              aria-pressed={view === o.id}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                view === o.id ? 'bg-white dark:bg-slate-700 text-cyan-700 dark:text-cyan-300 shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+              }`}
             >
-              <span>{r.icon}</span>
-              <span>{realmName(r, lang)}</span>
+              {o.icon}
+              {ja ? o.ja : o.en}
             </button>
           ))}
         </div>
 
-        {/* Right: Search & PathFinder Toggle */}
-        <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Path Finder Toggle Button */}
-          <button
-            onClick={() => {
-              sounds.playClick();
-              setShowPathFinder(!showPathFinder);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md ${
-              showPathFinder
-                ? 'bg-amber-500 text-white shadow-amber-500/25 ring-2 ring-amber-400'
-                : 'bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 border border-amber-200/60 dark:border-slate-800 hover:bg-amber-50'
-            }`}
-          >
-            <Route className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{lang === 'ja' ? 'つながり探索' : 'Route Finder'}</span>
-          </button>
-
-          {/* Quick Search Input */}
-          <div className="relative">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-md border border-amber-200/60 dark:border-slate-800 text-xs">
-              <Search className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={lang === 'ja' ? '単位を検索 (N, 圧力, J...)' : 'Search unit...'}
-                className="w-32 sm:w-44 bg-transparent outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 text-xs"
-              />
-            </div>
-
-            {/* Search Dropdown Results */}
-            {searchResults.length > 0 && (
-              <div className="absolute right-0 top-full mt-1.5 w-56 p-1.5 rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-amber-200/60 dark:border-slate-700 space-y-1">
-                {searchResults.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => handleSelectSearchResult(u)}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left hover:bg-amber-50 dark:hover:bg-slate-700 text-xs transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-serif font-bold text-amber-600 dark:text-amber-400">{uSym(u, lang)}</span>
-                      <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{uName(u, lang)}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 shrink-0">{uQty(u, lang)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm">
+            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={ja ? '単位をさがす（N、圧力…）' : 'Find a unit (N, pressure…)'}
+              aria-label={ja ? '単位をさがす' : 'Find a unit'}
+              className="w-full bg-transparent outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+            />
           </div>
+          {searchResults.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-30 p-1 rounded-xl bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700">
+              {searchResults.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    sounds.playPop();
+                    setSearchQuery('');
+                    setRealmFilter(null);
+                    focusUnit(u.id, true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left hover:bg-cyan-50 dark:hover:bg-slate-700 text-sm"
+                >
+                  <span className="font-serif font-bold text-cyan-700 dark:text-cyan-300 whitespace-nowrap">{uSym(u, lang)}</span>
+                  <span className="text-slate-700 dark:text-slate-200 truncate">{uName(u, lang)}</span>
+                  <span className="ml-auto text-xs text-slate-400 shrink-0">{shortQty(uQty(u, lang), lang)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        <button
+          onClick={() => {
+            sounds.playClick();
+            setShowRoute((v) => !v);
+          }}
+          aria-pressed={showRoute}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+            showRoute
+              ? 'bg-cyan-600 border-cyan-600 text-white'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400'
+          }`}
+        >
+          <Route className="w-4 h-4" />
+          {ja ? 'つながり探索' : 'Find a route'}
+        </button>
       </div>
 
-      {/* Path Finder Floating Panel */}
-      {showPathFinder && (
-        <div className="absolute top-16 right-3 z-20 w-80 p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl border border-amber-200/80 dark:border-slate-700 text-xs space-y-3 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-              <Route className="w-4 h-4 text-amber-500" />
-              <span>{lang === 'ja' ? '単位ハイウェイ探索' : 'Unit Highway Finder'}</span>
-            </span>
-            <button
-              onClick={() => setShowPathFinder(false)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              ✕
-            </button>
-          </div>
-
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            {lang === 'ja'
-              ? '出発と目的地の単位を選ぶと、組み立て方や換算でつながる最短ルートを地図上に表示します。'
-              : 'Pick a start and a goal unit to show the shortest route through formulas and conversions.'}
+      {/* つながり探索（地図の上に重ねず、ここに開く） */}
+      {showRoute && (
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-cyan-200 dark:border-slate-700 shadow-sm space-y-3" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {ja
+              ? '出発と目的地の単位を選ぶと、組み立て方や換算でつながる最短ルートを地図に示します。'
+              : 'Pick a start and a goal to show the shortest route through recipes and conversions.'}
           </p>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                {lang === 'ja' ? '出発 (Start)' : 'Start Unit'}
+          <div className="flex flex-wrap items-end gap-2">
+            {([
+              ['start', routeStart, setRouteStart, ja ? '出発' : 'Start'],
+              ['goal', routeEnd, setRouteEnd, ja ? '目的地' : 'Goal'],
+            ] as const).map(([key, value, setter, lbl]) => (
+              <label key={key} className="flex-1 min-w-[140px] text-xs font-bold text-slate-500 dark:text-slate-400 space-y-1">
+                <span className="block">{lbl}</span>
+                <select
+                  value={value}
+                  onChange={(e) => {
+                    sounds.playClick();
+                    setter(e.target.value);
+                  }}
+                  className="w-full p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-serif font-bold text-sm text-slate-800 dark:text-slate-100 outline-none"
+                >
+                  {RAW_UNITS.filter((u) => u.kind !== 'scale').map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {uSym(u, lang)} - {uName(u, lang)}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <select
-                value={pathStart}
-                onChange={(e) => {
-                  sounds.playClick();
-                  setPathStart(e.target.value);
-                }}
-                className="w-full p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-serif font-bold text-amber-600 text-xs outline-none"
-              >
-                {RAW_UNITS.filter((u) => u.kind !== 'scale').map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {uSym(u, lang)} - {uName(u, lang)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">
-                {lang === 'ja' ? '目的地 (Goal)' : 'Target Unit'}
-              </label>
-              <select
-                value={pathEnd}
-                onChange={(e) => {
-                  sounds.playClick();
-                  setPathEnd(e.target.value);
-                }}
-                className="w-full p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-serif font-bold text-emerald-600 text-xs outline-none"
-              >
-                {RAW_UNITS.filter((u) => u.kind !== 'scale').map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {uSym(u, lang)} - {uName(u, lang)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            ))}
           </div>
-
-          {/* Path Steps */}
-          {calculatedPath ? (
-            <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-slate-800/80 border border-amber-200/60 dark:border-slate-700 space-y-1.5">
-              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 block">
-                {lang === 'ja'
-                  ? `ルート（${calculatedPath.length - 1} ステップ）`
-                  : `Route (${calculatedPath.length - 1} steps)`}
+          {route ? (
+            <div className="flex items-center gap-1.5 flex-wrap p-2.5 rounded-xl bg-cyan-50 dark:bg-slate-800">
+              <span className="text-xs font-bold text-cyan-800 dark:text-cyan-300 mr-1">
+                {ja ? `${route.length - 1}ステップ` : `${route.length - 1} steps`}
               </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {calculatedPath.map((id, idx) => {
-                  const u = unitsById[id];
-                  return (
-                    <React.Fragment key={id}>
-                      <button
-                        onClick={() => {
-                          sounds.playPop();
-                          flyTo(u.x, u.y, 1.2);
-                          onSelectUnit(u);
-                        }}
-                        className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 font-serif font-bold text-amber-700 dark:text-amber-300 shadow-2xs hover:scale-105 transition-transform"
-                      >
-                        {uSym(u, lang)}
-                      </button>
-                      {idx < calculatedPath.length - 1 && (
-                        <ChevronRight className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
+              {route.map((id, i) => (
+                <React.Fragment key={id}>
+                  <button
+                    onClick={() => scrollToUnit(id)}
+                    className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 font-serif font-bold text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-slate-600"
+                  >
+                    {uSym(unitsById[id], lang)}
+                  </button>
+                  {i < route.length - 1 && <ChevronRight className="w-3.5 h-3.5 text-cyan-500 shrink-0" />}
+                </React.Fragment>
+              ))}
             </div>
           ) : (
-            <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-400 text-center">
-              {lang === 'ja' ? 'この向きにたどれるルートはありません。出発と目的地を入れ替えてみましょう。' : 'No route in this direction. Try swapping start and goal.'}
-            </div>
+            <p className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-xs text-slate-500 text-center">
+              {routeStart === routeEnd
+                ? ja ? '出発と目的地がおなじです。' : 'Start and goal are the same.'
+                : ja ? 'この向きにたどれるルートはありません。出発と目的地を入れ替えてみましょう。' : 'No route in this direction. Try swapping start and goal.'}
+            </p>
           )}
         </div>
       )}
 
-      {/* Floating Legend / Active Inspector Pill */}
-      {activeUnit && (
-        <div className="absolute bottom-4 left-4 z-20 max-w-sm p-3.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-xl border border-amber-200/80 dark:border-slate-700 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
-          <div className="flex items-center gap-3">
-            <div className={`min-w-12 h-12 px-2 shrink-0 whitespace-nowrap rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-400/40 flex items-center justify-center font-serif font-bold text-amber-600 dark:text-amber-300 ${bySymLength(uSym(activeUnit, lang), 'text-xl', 'text-lg', 'text-base')}`}>
-              {uSym(activeUnit, lang)}
+      {/* 凡例：分野（タップでその分野だけ明るく）と線の見方 */}
+      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
+          {REALMS.map((r) => {
+            const on = realmFilter === r.id;
+            return (
+              <button
+                key={r.id}
+                onClick={() => {
+                  sounds.playClick();
+                  setFocusId(null);
+                  setRealmFilter(on ? null : r.id);
+                }}
+                aria-pressed={on}
+                className={`shrink-0 flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full border text-xs font-semibold whitespace-nowrap transition-colors ${
+                  on
+                    ? 'text-white border-transparent'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-slate-400'
+                }`}
+                style={on ? { background: r.color } : undefined}
+              >
+                <span aria-hidden className="w-2 h-2 rounded-full" style={{ background: on ? 'white' : r.color }} />
+                <span>{r.icon}</span>
+                <span>{realmName(r, lang)}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <span>{ja ? '単位をタップ → つながりが光る（もう一度タップで詳しく）' : 'Tap a unit to light up its links (tap again for details)'}</span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded border-2 border-sky-500 bg-sky-50" />
+            {ja ? '材料' : 'made from'}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded border-2 border-emerald-500 bg-emerald-50" />
+            {ja ? 'この単位から作れる' : 'used to make'}
+          </span>
+          <span>{ja ? '実線 × かける ／ 点線 ÷ わる ／ 細かい点線 換算・目盛り' : 'solid × multiply / dashed ÷ divide / dotted conversion'}</span>
+        </p>
+      </div>
+
+      {/* 地図本体 */}
+      <div
+        ref={contentRef}
+        className="relative rounded-2xl bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-3 sm:p-4 overflow-x-auto"
+      >
+        <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible" aria-hidden>
+          <defs>
+            {(Object.keys(EDGE_COLOR) as Array<keyof typeof EDGE_COLOR>).map((k) => (
+              <marker key={k} id={`map-arrow-${k}`} viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill={EDGE_COLOR[k]} />
+              </marker>
+            ))}
+          </defs>
+          {edges.map((e) => (
+            <path
+              key={e.id}
+              d={e.d}
+              fill="none"
+              stroke={EDGE_COLOR[e.kind]}
+              strokeWidth={e.kind === 'route' ? 3 : 2}
+              strokeDasharray={e.dash || undefined}
+              strokeLinecap="round"
+              markerEnd={`url(#map-arrow-${e.kind})`}
+              opacity={0.9}
+            />
+          ))}
+        </svg>
+        {/* ×・÷ のラベルは単位の上に出す */}
+        <div className="absolute inset-0 pointer-events-none z-20" aria-hidden>
+          {edges
+            .filter((e) => e.label)
+            .map((e) => (
+              <span
+                key={e.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2 px-1.5 rounded-full text-[11px] font-bold leading-4 bg-white dark:bg-slate-900 border"
+                style={{ left: e.lx, top: e.ly, color: EDGE_COLOR[e.kind], borderColor: EDGE_COLOR[e.kind] }}
+              >
+                {e.label}
+              </span>
+            ))}
+        </div>
+
+        {view === 'build' ? (
+          <div className="flex flex-col md:flex-row gap-4 md:gap-3 md:min-w-[1100px]">
+            {BUILD_COLUMNS.map((col) => {
+              // なかまの多い列（基本単位など）は、広い画面で2列に割って縦に長くなりすぎないようにする
+              const rows = col.hosts.reduce((n, u) => n + 1 + Math.ceil((MEMBERS[u.id] || []).length / 2) * 0.55, 0);
+              const sub = Math.max(1, Math.ceil(rows / 8.5));
+              return (
+                <section key={col.depth} className="md:basis-0 min-w-0" style={{ flexGrow: sub }}>
+                  <h2 className="flex items-center gap-1.5 mb-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                    <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-[11px]">{col.depth}</span>
+                    {stepTitle(col.depth)}
+                  </h2>
+                  <div
+                    className="grid grid-cols-3 sm:grid-cols-5 md:[grid-template-columns:var(--cols)] gap-2 items-start"
+                    style={{ '--cols': `repeat(${sub}, minmax(0, 1fr))` } as React.CSSProperties}
+                  >
+                    {col.hosts.map(renderGroup)}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3">
+            {FIELD_GROUPS.map(({ realm, units }) => (
+              <section key={realm.id} className="break-inside-avoid mb-3 p-3 rounded-xl border bg-white dark:bg-slate-900" style={{ borderColor: isDark ? realm.color + '80' : realm.borderLight }}>
+                <h2 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: isDark ? undefined : realm.color }}>
+                  <span>{realm.icon}</span>
+                  <span className="dark:text-slate-100">{realmName(realm, lang)}</span>
+                  <span className="text-xs font-medium text-slate-400">{units.length}</span>
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">{realmDesc(realm, lang)}</p>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-2">{units.map((u) => renderUnit(u))}</div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 選んだ単位のカード（画面の下に固定） */}
+      {focus && (
+        <div
+          className="fixed z-30 bottom-3 inset-x-3 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[400px] p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl border border-slate-200 dark:border-slate-700 space-y-3"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          onClick={(e) => e.stopPropagation()}
+          role="region"
+          aria-label={ja ? '選んだ単位' : 'Selected unit'}
+        >
+          <div className="flex items-start gap-3">
+            <div className="min-w-12 h-12 px-2 rounded-xl bg-sky-50 dark:bg-sky-950 border-2 border-sky-600 flex items-center justify-center font-serif font-bold text-lg text-sky-800 dark:text-sky-200 whitespace-nowrap">
+              {uSym(focus, lang)}
             </div>
-            <div>
-              <div className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">
-                {uName(activeUnit, lang)}
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-slate-800 dark:text-slate-100 leading-tight">{uName(focus, lang)}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {uQty(focus, lang)} ・ {realmById[focus.realmId]?.icon} {realmName(realmById[focus.realmId], lang)}
               </div>
-              <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                {uQty(activeUnit, lang)}
-              </div>
-              <div className="text-[10px] text-slate-400">
-                {formatDimSI(getUnitDim(activeUnit), lang)}
+              <div className="mt-1 text-sm font-serif text-slate-700 dark:text-slate-200">
+                {focus.forms?.[0]
+                  ? `${uSym(focus, lang)} = ${recipeText(focus, lang)}`
+                  : focus.kind === 'base'
+                  ? ja ? 'SI基本単位（ほかの単位のもと）' : 'SI base unit'
+                  : uConv(focus, lang) || (focus.kind === 'scale' ? (ja ? '単位ではない目盛り' : 'A scale, not a unit') : '')}
               </div>
             </div>
+            <button onClick={() => setFocusId(null)} className="p-1 -m-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={ja ? '閉じる' : 'Close'}>
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <button
-            onClick={() => {
-              sounds.playPop();
-              onSelectUnit(activeUnit);
-            }}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm shadow-amber-500/30 transition-transform active:scale-95 shrink-0"
-          >
-            {lang === 'ja' ? '詳細を見る' : 'Inspect'}
-          </button>
+          {related && (related.inIds.size > 0 || related.outIds.size > 0) && (
+            <div className="space-y-1.5 text-xs">
+              {([
+                ['in', related.inIds, ja ? '材料' : 'From', 'text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700'],
+                ['out', related.outIds, ja ? '作れる' : 'Makes', 'text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'],
+              ] as const).map(([key, ids, lbl, cls]) =>
+                ids.size > 0 ? (
+                  <div key={key} className="flex items-start gap-2">
+                    <span className="shrink-0 w-12 pt-0.5 font-bold text-slate-500 dark:text-slate-400">{lbl}</span>
+                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                      {Array.from(ids).map((id) => (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            sounds.playPop();
+                            focusUnit(id, true);
+                          }}
+                          className={`px-1.5 py-0.5 rounded-md border bg-white dark:bg-slate-800 font-serif font-bold whitespace-nowrap ${cls}`}
+                        >
+                          {uSym(unitsById[id], lang)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                sounds.playPop();
+                onSelectUnit(focus);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-bold"
+            >
+              <BookOpen className="w-4 h-4" />
+              {ja ? '詳しく見る' : 'Details'}
+            </button>
+            {TARGET_IDS.has(focus.id) && (
+              <button
+                onClick={() => {
+                  sounds.playPop();
+                  onOpenTree(focus.id);
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold"
+              >
+                <GitBranch className="w-4 h-4" />
+                {ja ? 'ツリー図で作り方' : 'Recipe tree'}
+              </button>
+            )}
+          </div>
         </div>
       )}
-
-      {/* Zoom / Navigation Float Controls */}
-      <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-1.5 p-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl shadow-lg border border-amber-200/60 dark:border-slate-800">
-        <button
-          onClick={() => {
-            sounds.playClick();
-            setScale((s) => Math.min(2.5, s * 1.2));
-          }}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors"
-          title="Zoom In"
-        >
-          <ZoomIn className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => {
-            sounds.playClick();
-            setScale((s) => Math.max(0.14, s * 0.83));
-          }}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors"
-          title="Zoom Out"
-        >
-          <ZoomOut className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleResetCamera}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-amber-100 dark:hover:bg-slate-800 transition-colors"
-          title="Reset View"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Main Pan/Zoom Interactive SVG Canvas */}
-      <div
-        ref={containerRef}
-        onPointerDown={handleMouseDown}
-        onPointerMove={handleMouseMove}
-        onPointerUp={handleMouseUp}
-        onPointerLeave={handleMouseUp}
-        onPointerCancel={handleMouseUp}
-        onWheel={handleWheel}
-        className={`w-full h-full cursor-${isDragging ? 'grabbing' : 'grab'}`}
-      >
-        <svg
-          width="100%"
-          height="100%"
-          className="w-full h-full"
-          style={{ touchAction: 'none' }}
-        >
-          <defs>
-            {/* 矢印：大きさは線の太さに関係なく一定。先端（refX=10）が線の終点にぴったり重なる */}
-            <marker id="arrow-default" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8" />
-            </marker>
-            <marker id="arrow-incoming" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#0284C7" />
-            </marker>
-            <marker id="arrow-outgoing" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#10B981" />
-            </marker>
-            <marker id="arrow-path" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="15" markerHeight="15" markerUnits="userSpaceOnUse" orient="auto">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#06B6D4" />
-            </marker>
-          </defs>
-
-          {/* World Container with dynamic pan & scale */}
-          <g transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}>
-            {/* 1. Island Landmasses (Organic Rounded Realms) */}
-            {REALMS.map((r) => (
-              <g key={r.id}>
-                {/* Realm Soft Shadow / Landmass */}
-                <rect
-                  x={r.x}
-                  y={r.y}
-                  width={r.width}
-                  height={r.height}
-                  rx="48"
-                  fill={isDark ? r.bgDark : r.bgLight}
-                  stroke={isDark ? r.color : r.borderLight}
-                  strokeWidth={isDark ? "1.5" : "2.5"}
-                  opacity={isDark ? 0.45 : 0.95}
-                  className="transition-colors duration-300"
-                  style={{
-                    filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.03))',
-                  }}
-                />
-
-                {/* Realm Header Label Banner */}
-                <g transform={`translate(${r.x + 24}, ${r.y + 36})`}>
-                  <rect
-                    x="0"
-                    y="-22"
-                    width={Math.min(r.width - 48, 320)}
-                    height="36"
-                    rx="18"
-                    fill={isDark ? "#1E293B" : "white"}
-                    stroke={isDark ? "#334155" : r.borderLight}
-                    strokeWidth="1.5"
-                    className="shadow-xs"
-                  />
-                  <text
-                    x="16"
-                    y="2"
-                    fontSize="15"
-                    fontWeight="800"
-                    fill={isDark ? '#F8FAFC' : r.color}
-                    fontFamily="Zen Kaku Gothic New, sans-serif"
-                  >
-                    {r.icon} {realmName(r, lang)}
-                  </text>
-                </g>
-              </g>
-            ))}
-
-            {/* 2. Map Connection Links / Roads */}
-            <g className="links-layer">
-              {MAP_LINKS.map((link) => {
-                const src = unitsById[link.source];
-                const tgt = unitsById[link.target];
-                if (!src || !tgt) return null;
-
-                // Determine highlight state
-                const isIncoming = activeUnit && link.target === activeUnit.id;
-                const isOutgoing = activeUnit && link.source === activeUnit.id;
-                const isPathEdge = pathEdgeSet.has(`${link.source}->${link.target}`);
-
-                const isConv = link.op === 'conv' || link.op === 'log';
-                let strokeColor = isConv ? '#94A3B8' : '#CBD5E1';
-                let strokeWidth = 1.5;
-                let strokeDash = isConv ? '5 5' : 'none';
-                let markerEnd = 'url(#arrow-default)';
-                let opacity = isConv ? 0.45 : 0.3;
-
-                if (isPathEdge) {
-                  strokeColor = '#06B6D4';
-                  strokeWidth = 4;
-                  strokeDash = '6 4';
-                  markerEnd = 'url(#arrow-path)';
-                  opacity = 1;
-                } else if (isIncoming) {
-                  strokeColor = '#0284C7';
-                  strokeWidth = 3;
-                  if (isConv) strokeDash = '6 4';
-                  markerEnd = 'url(#arrow-incoming)';
-                  opacity = 1;
-                } else if (isOutgoing) {
-                  strokeColor = '#10B981';
-                  strokeWidth = 3;
-                  if (isConv) strokeDash = '6 4';
-                  markerEnd = 'url(#arrow-outgoing)';
-                  opacity = 1;
-                } else if (activeUnit) {
-                  // Dim unrelated links
-                  opacity = 0.12;
-                }
-
-                // 単位の枠の端から端へまっすぐ結ぶ（矢印の先が枠に当たる）
-                const [x1, y1] = edgePoint(src, tgt.x, tgt.y, lang, 3);
-                const [x2, y2] = edgePoint(tgt, src.x, src.y, lang, 3);
-                const pathData = `M ${x1} ${y1} L ${x2} ${y2}`;
-
-                return (
-                  <g key={link.id}>
-                    <path
-                      d={pathData}
-                      fill="none"
-                      stroke={strokeColor}
-                      strokeWidth={strokeWidth}
-                      strokeDasharray={strokeDash}
-                      markerEnd={markerEnd}
-                      opacity={opacity}
-                      className="transition-all duration-200"
-                    />
-                    {/* Optional operation label when highlighted */}
-                    {(isIncoming || isOutgoing || isPathEdge) && (
-                      <text
-                        x={(x1 + x2) / 2}
-                        y={(y1 + y2) / 2 - 6}
-                        fill={isPathEdge ? '#0E7490' : isIncoming ? '#0369A1' : '#047857'}
-                        fontSize="12"
-                        fontWeight="800"
-                        textAnchor="middle"
-                        className="bg-white/80 select-none font-bold"
-                      >
-                        {link.op === 'conv'
-                          ? lang === 'ja' ? '換算' : 'convert'
-                          : link.op === 'log'
-                          ? lang === 'ja' ? '対数・目安' : 'log / rough'
-                          : link.label}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </g>
-
-            {/* 3. Pop Unit Nodes */}
-            <g className="nodes-layer">
-              {RAW_UNITS.map((u) => {
-                const isSelected = selectedUnit?.id === u.id;
-                const isHovered = hoveredUnitId === u.id;
-                const isBase = u.kind === 'base';
-                const isScale = u.kind === 'scale';
-
-                // Relationship status to active unit
-                const isIncoming = activeRelated?.incoming.has(u.id);
-                const isOutgoing = activeRelated?.outgoing.has(u.id);
-                const isInPath = calculatedPath ? calculatedPath.includes(u.id) : false;
-
-                // Dimming when something is active and this node is unrelated
-                let nodeOpacity = 1;
-                if (activeUnit && activeUnit.id !== u.id && !isIncoming && !isOutgoing && !isInPath) {
-                  nodeOpacity = 0.28;
-                }
-
-                // 枠の大きさは記号の長さに合わせる
-                const box = nodeBox(u, lang);
-
-                // Node fill & ring color
-                let ringColor = isBase ? '#475569' : '#CBD5E1';
-                let ringWidth = isBase ? 3 : 1.5;
-
-                if (isSelected) {
-                  ringColor = '#0284C7';
-                  ringWidth = 3.5;
-                } else if (isInPath) {
-                  ringColor = '#06B6D4';
-                  ringWidth = 3.5;
-                } else if (isIncoming) {
-                  ringColor = '#0284C7';
-                  ringWidth = 3;
-                } else if (isOutgoing) {
-                  ringColor = '#10B981';
-                  ringWidth = 3;
-                }
-
-                return (
-                  <g
-                    key={u.id}
-                    transform={`translate(${u.x}, ${u.y})`}
-                    opacity={nodeOpacity}
-                    onClick={() => {
-                      sounds.playPop();
-                      onSelectUnit(u);
-                    }}
-                    onMouseEnter={() => setHoveredUnitId(u.id)}
-                    onMouseLeave={() => setHoveredUnitId(null)}
-                    className="cursor-pointer select-none"
-                  >
-                    {/* Scale Tag Badge */}
-                    {isScale && (
-                      <g transform={`translate(0, ${-box.h / 2 - 12})`}>
-                        <rect x="-24" y="-8" width="48" height="16" rx="8" fill="#F5F5F4" stroke="#78716C" strokeWidth="1" />
-                        <text x="0" y="3.5" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#57534E">
-                          {lang === 'ja' ? '目盛り' : 'scale'}
-                        </text>
-                      </g>
-                    )}
-
-                    {/* 単位の枠（基本単位は太い濃い枠） */}
-                    <rect
-                      x={-box.w / 2 - (isHovered ? 2 : 0)}
-                      y={-box.h / 2 - (isHovered ? 2 : 0)}
-                      width={box.w + (isHovered ? 4 : 0)}
-                      height={box.h + (isHovered ? 4 : 0)}
-                      rx={box.h / 2}
-                      fill={isDark ? (isBase ? '#334155' : '#1E293B') : isBase ? '#F1F5F9' : 'white'}
-                      stroke={ringColor}
-                      strokeWidth={ringWidth}
-                      className="transition-colors pointer-events-none"
-                      style={{
-                        filter: isSelected || isInPath || isHovered
-                          ? 'drop-shadow(0 6px 16px rgba(2, 132, 199, 0.3))'
-                          : 'drop-shadow(0 3px 6px rgba(0,0,0,0.06))',
-                      }}
-                    />
-
-                    {/* Stable invisible hit target */}
-                    <rect x={-box.w / 2 - 10} y={-box.h / 2 - 10} width={box.w + 20} height={box.h + 20} rx={box.h / 2 + 10} fill="transparent" className="cursor-pointer" />
-
-                    {/* Center Symbol */}
-                    <text
-                      x="0"
-                      y="6.5"
-                      textAnchor="middle"
-                      fontFamily="STIX Two Text, Georgia, serif"
-                      fontWeight="bold"
-                      fontSize={SYM_FONT}
-                      fill={
-                        isBase
-                          ? isDark ? '#E2E8F0' : '#334155'
-                          : isSelected
-                          ? '#0369A1'
-                          : isDark
-                          ? '#F1F5F9'
-                          : '#1E293B'
-                      }
-                      className="select-none pointer-events-none"
-                    >
-                      {uSym(u, lang)}
-                    </text>
-
-                    {/* Bottom Quantity Pill Label */}
-                    <g transform={`translate(0, ${box.h / 2 + 16})`} className="pointer-events-none">
-                      <rect
-                        x="-66"
-                        y="-12"
-                        width="132"
-                        height="24"
-                        rx="12"
-                        fill={isDark ? "rgba(30, 41, 59, 0.95)" : "rgba(255, 255, 255, 0.95)"}
-                        stroke={isDark ? "#334155" : "#CBD5E1"}
-                        strokeWidth="1"
-                      />
-                      <text
-                        x="0"
-                        y="4"
-                        textAnchor="middle"
-                        fontSize="13"
-                        fontWeight="600"
-                        fill={isDark ? "#CBD5E1" : "#334155"}
-                        className="select-none"
-                      >
-                        {shortQty(uQty(u, lang), lang)}
-                      </text>
-                    </g>
-                  </g>
-                );
-              })}
-            </g>
-          </g>
-        </svg>
-      </div>
     </div>
   );
 };

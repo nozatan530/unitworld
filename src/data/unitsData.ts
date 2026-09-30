@@ -11,18 +11,18 @@ export const BASE_LETTER: Record<string, string> = {
   cd: 'J',
 };
 
-// 地域（ワールドマップの島）。単位は field（分野）に合わせて自動で配置する
+// 分野（ワールドマップの色分け・錬成ラボの材料の分類）。単位は field に合わせて振り分ける
 export const REALMS: RealmInfo[] = [
-  { id: 'base', name: '基本単位の原点', nameEn: 'The Seven Base Units', color: '#475569', bgLight: '#F1F5F9', bgDark: '#1E293B', borderLight: '#CBD5E1', icon: '🌱', desc: 'すべての単位のもとになる7つのSI基本単位', descEn: 'The seven SI base units everything else is built from', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'mechanics', name: '力学の大地', nameEn: 'Mechanics', color: '#2563EB', bgLight: '#EFF6FF', bgDark: '#172554', borderLight: '#BFDBFE', icon: '⚙️', desc: '速さ・力・エネルギー・圧力', descEn: 'Speed, force, energy and pressure', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'wave', name: '波と光の入り江', nameEn: 'Waves & Light', color: '#0891B2', bgLight: '#ECFEFF', bgDark: '#083344', borderLight: '#A5F3FC', icon: '🌊', desc: '振動数・波長・光の量', descEn: 'Frequency, wavelength and light', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'thermal', name: '熱の谷', nameEn: 'Thermal Valley', color: '#DC2626', bgLight: '#FEF2F2', bgDark: '#450A0A', borderLight: '#FECACA', icon: '🔥', desc: '温度・熱量・比熱', descEn: 'Temperature, heat and specific heat', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'em', name: '電磁気の街', nameEn: 'Electricity & Magnetism', color: '#C026D3', bgLight: '#FDF4FF', bgDark: '#4A044E', borderLight: '#F5D0FE', icon: '⚡', desc: '電荷・電圧・抵抗・磁場', descEn: 'Charge, voltage, resistance and magnetic fields', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'atomic', name: '原子の島', nameEn: 'Atomic & Nuclear', color: '#65A30D', bgLight: '#F7FEE7', bgDark: '#1A2E05', borderLight: '#D9F99D', icon: '⚛️', desc: '原子の質量・放射線', descEn: 'Atomic mass and radiation', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'chem', name: '化学の海', nameEn: 'Chemistry', color: '#B45309', bgLight: '#FFFBEB', bgDark: '#451A03', borderLight: '#FDE68A', icon: '🧪', desc: '物質量・濃度・反応熱', descEn: 'Amount of substance, concentration and heats of reaction', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'bio', name: '生物の森', nameEn: 'Biology', color: '#16A34A', bgLight: '#F0FDF4', bgDark: '#052E16', borderLight: '#BBF7D0', icon: '🌿', desc: '細胞の大きさ・血圧・光合成の光', descEn: 'Cell sizes, blood pressure and light for photosynthesis', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'earth', name: '地球と宇宙', nameEn: 'Earth & Space', color: '#7C3AED', bgLight: '#F5F3FF', bgDark: '#2E1065', borderLight: '#DDD6FE', icon: '🌍', desc: '気象・地震・天体の距離', descEn: 'Weather, earthquakes and distances in space', x: 0, y: 0, width: 0, height: 0 },
-  { id: 'scale', name: '目盛りの天文台', nameEn: 'Scales (not units)', color: '#78716C', bgLight: '#FAFAF9', bgDark: '#292524', borderLight: '#E7E5E4', icon: '🔭', desc: '単位ではない対数・階級の目盛り', descEn: 'Log and rank scales that are not units', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'base', name: '基本単位', nameEn: 'SI base units', color: '#475569', bgLight: '#F1F5F9', bgDark: '#1E293B', borderLight: '#CBD5E1', icon: '🌱', desc: 'すべての単位のもとになる7つのSI基本単位', descEn: 'The seven SI base units everything else is built from', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'mechanics', name: '力学', nameEn: 'Mechanics', color: '#2563EB', bgLight: '#EFF6FF', bgDark: '#172554', borderLight: '#BFDBFE', icon: '⚙️', desc: '速さ・力・エネルギー・圧力', descEn: 'Speed, force, energy and pressure', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'wave', name: '波・光', nameEn: 'Waves & light', color: '#0891B2', bgLight: '#ECFEFF', bgDark: '#083344', borderLight: '#A5F3FC', icon: '🌊', desc: '振動数・波長・光の量', descEn: 'Frequency, wavelength and light', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'thermal', name: '熱', nameEn: 'Heat', color: '#DC2626', bgLight: '#FEF2F2', bgDark: '#450A0A', borderLight: '#FECACA', icon: '🔥', desc: '温度・熱量・比熱', descEn: 'Temperature, heat and specific heat', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'em', name: '電磁気', nameEn: 'Electricity & magnetism', color: '#C026D3', bgLight: '#FDF4FF', bgDark: '#4A044E', borderLight: '#F5D0FE', icon: '⚡', desc: '電荷・電圧・抵抗・磁場', descEn: 'Charge, voltage, resistance and magnetic fields', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'atomic', name: '原子', nameEn: 'Atoms & nuclei', color: '#65A30D', bgLight: '#F7FEE7', bgDark: '#1A2E05', borderLight: '#D9F99D', icon: '⚛️', desc: '原子の質量・放射線', descEn: 'Atomic mass and radiation', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'chem', name: '化学', nameEn: 'Chemistry', color: '#B45309', bgLight: '#FFFBEB', bgDark: '#451A03', borderLight: '#FDE68A', icon: '🧪', desc: '物質量・濃度・反応熱', descEn: 'Amount of substance, concentration and heats of reaction', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'bio', name: '生物', nameEn: 'Biology', color: '#16A34A', bgLight: '#F0FDF4', bgDark: '#052E16', borderLight: '#BBF7D0', icon: '🌿', desc: '細胞の大きさ・血圧・光合成の光', descEn: 'Cell sizes, blood pressure and light for photosynthesis', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'earth', name: '地学・天文', nameEn: 'Earth & space', color: '#7C3AED', bgLight: '#F5F3FF', bgDark: '#2E1065', borderLight: '#DDD6FE', icon: '🌍', desc: '気象・地震・天体の距離', descEn: 'Weather, earthquakes and distances in space', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'scale', name: '目盛り（単位ではない）', nameEn: 'Scales (not units)', color: '#78716C', bgLight: '#FAFAF9', bgDark: '#292524', borderLight: '#E7E5E4', icon: '🔭', desc: '単位ではない対数・階級の目盛り', descEn: 'Log and rank scales that are not units', x: 0, y: 0, width: 0, height: 0 },
 ];
 
 export const RAW_UNITS: UnitDefinition[] = [
@@ -1728,57 +1728,16 @@ export const RAW_UNITS: UnitDefinition[] = [
   },
 ];
 
-// ===== ワールドマップの自動レイアウト =====
-// field（分野）から地域を決め、地域ごとに格子状に並べる。地域どうしは重ならない
+// ===== 分野の振り分け =====
+// field（分野）から realmId を決める
 const FIELD_TO_REALM: Record<string, string> = {
   基本単位: 'base', 力学: 'mechanics', '波・光': 'wave', 熱: 'thermal', 電磁気: 'em',
   原子: 'atomic', 化学: 'chem', 生物: 'bio', 地学: 'earth', 天文: 'earth',
 };
-const CELL_W = 150;
-const CELL_H = 132;
-const REALM_PAD_X = 40;
-const REALM_PAD_TOP = 96;
-const REALM_PAD_BOTTOM = 40;
-const REALM_GAP = 70;
-const REALM_ROWS = [['base', 'mechanics', 'wave'], ['thermal', 'em', 'atomic'], ['chem', 'bio', 'earth', 'scale']];
-const REALM_COLS: Record<string, number> = { base: 3, mechanics: 5, wave: 2, thermal: 3, em: 4, atomic: 3, chem: 4, bio: 3, earth: 4, scale: 2 };
 
 RAW_UNITS.forEach((u) => {
   u.realmId = (u.kind === 'scale' ? 'scale' : FIELD_TO_REALM[u.field] || 'mechanics') as UnitDefinition['realmId'];
 });
-
-function layoutWorld() {
-  const byRealm: Record<string, UnitDefinition[]> = {};
-  RAW_UNITS.forEach((u) => (byRealm[u.realmId] = byRealm[u.realmId] || []).push(u));
-  const realmById: Record<string, RealmInfo> = {};
-  REALMS.forEach((r) => (realmById[r.id] = r));
-  let y = 0;
-  let maxW = 0;
-  for (const row of REALM_ROWS) {
-    let x = 0;
-    let rowH = 0;
-    for (const id of row) {
-      const r = realmById[id];
-      const units = byRealm[id] || [];
-      const cols = REALM_COLS[id];
-      const rows = Math.max(1, Math.ceil(units.length / cols));
-      r.x = x;
-      r.y = y;
-      r.width = REALM_PAD_X * 2 + cols * CELL_W;
-      r.height = REALM_PAD_TOP + rows * CELL_H + REALM_PAD_BOTTOM;
-      units.forEach((u, i) => {
-        u.x = r.x + REALM_PAD_X + (i % cols) * CELL_W + CELL_W / 2;
-        u.y = r.y + REALM_PAD_TOP + Math.floor(i / cols) * CELL_H + CELL_H / 2 - 10;
-      });
-      x += r.width + REALM_GAP;
-      rowH = Math.max(rowH, r.height);
-    }
-    maxW = Math.max(maxW, x - REALM_GAP);
-    y += rowH + REALM_GAP;
-  }
-  return { width: maxW, height: y - REALM_GAP };
-}
-export const WORLD_SIZE = layoutWorld();
 
 // Calculation of dimensions and unit map lookup
 export const unitsById: Record<string, UnitDefinition> = {};
