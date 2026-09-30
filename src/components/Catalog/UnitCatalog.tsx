@@ -132,7 +132,9 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
             const field = realm.id;
             return (
             <div key={field} className="space-y-3">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-amber-200/60 dark:border-slate-800 pb-2">
+              {/* 見出しはワールドマップと同じ分野の色 */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b-2 pb-2" style={{ borderColor: realm.color + '66' }}>
+                <span aria-hidden className="w-1.5 h-6 rounded-full" style={{ background: realm.color }} />
                 <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">
                   {realm.icon} {realmName(realm, lang)}
                 </h2>
@@ -155,8 +157,12 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                         sounds.playPop();
                         onSelectUnit(u);
                       }}
-                      className="group p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 shadow-2xs hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between"
+                      className={`group relative p-3.5 pl-5 rounded-2xl bg-white dark:bg-slate-900 border hover:border-amber-400 dark:hover:border-amber-500 shadow-2xs hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between ${
+                        isBase ? 'border-2 border-slate-500 dark:border-slate-400' : 'border-slate-200/80 dark:border-slate-800'
+                      }`}
                     >
+                      {/* 左の色の帯：主な分野（ワールドマップと同じ） */}
+                      <span aria-hidden className="absolute left-1.5 top-3 bottom-3 w-1.5 rounded-full" style={{ background: realm.color }} />
                       <div>
                         {/* Top Symbol & Tags */}
                         <div className="flex items-start justify-between gap-1 mb-2">
