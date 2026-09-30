@@ -79,6 +79,11 @@ export default function App() {
     }
   }, [isDark]);
 
+  // 画面を切り替えたら、いちばん上から表示する（前の画面のスクロール位置を引き継がない）
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
+
   // Sound enabled state
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => sounds.enabled);
 
