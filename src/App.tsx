@@ -6,6 +6,7 @@ import { AlchemyTreeDashboard } from './components/Alchemy/AlchemyTreeDashboard'
 import { UnitCatalog } from './components/Catalog/UnitCatalog';
 import { QuizAdventure } from './components/Quiz/QuizAdventure';
 import { PrefixScaleGuide } from './components/PrefixScale/PrefixScaleGuide';
+import { UnitDetour } from './components/Detour/UnitDetour';
 import { UnitDetailModal } from './components/Inspector/UnitDetailModal';
 import { UnitDefinition } from './types/unit';
 import { sounds } from './utils/sound';
@@ -173,6 +174,8 @@ export default function App() {
             lang={lang}
           />
         )}
+
+        {activeTab === 'detour' && <UnitDetour lang={lang} />}
 
         {activeTab === 'scale' && (
           <PrefixScaleGuide lang={lang} />

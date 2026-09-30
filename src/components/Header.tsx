@@ -1,8 +1,8 @@
 import React from 'react';
-import { Volume2, VolumeX, Sun, Moon, Compass, Sparkles, BookOpen, HelpCircle, Ruler, GitBranch } from 'lucide-react';
+import { Volume2, VolumeX, Sun, Moon, Compass, Sparkles, BookOpen, HelpCircle, Ruler, GitBranch, Footprints } from 'lucide-react';
 import { sounds } from '../utils/sound';
 
-export type ActiveTab = 'map' | 'lab' | 'tree' | 'catalog' | 'quiz' | 'scale';
+export type ActiveTab = 'map' | 'lab' | 'tree' | 'catalog' | 'quiz' | 'scale' | 'detour';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -47,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'catalog', labelJa: '単位図鑑', labelEn: 'Unit Index', shortJa: '図鑑', shortEn: 'Units', Icon: BookOpen },
     { id: 'quiz', labelJa: 'クイズ', labelEn: 'Quiz', shortJa: 'クイズ', shortEn: 'Quiz', Icon: HelpCircle },
     { id: 'scale', labelJa: '接頭語・尺度', labelEn: 'Prefixes', shortJa: '接頭語', shortEn: 'Prefix', Icon: Ruler },
+    { id: 'detour', labelJa: 'よりみち', labelEn: 'Detours', shortJa: 'よりみち', shortEn: 'Detours', Icon: Footprints },
   ];
   const ja = lang === 'ja';
 
@@ -57,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-amber-200/60 dark:border-slate-800 transition-colors">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 xl:px-4 h-16 flex items-center justify-between gap-2 sm:gap-4 xl:gap-2">
           {/* ロゴ */}
           <button
             onClick={() => handleTabChange('map')}
@@ -83,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* PC：上のタブ */}
-          <nav aria-label={ja ? '画面の切り替え' : 'Sections'} className="hidden xl:flex items-center gap-1 p-1 bg-amber-100/70 dark:bg-slate-800/80 rounded-xl">
+          <nav aria-label={ja ? '画面の切り替え' : 'Sections'} className="hidden xl:flex items-center gap-0.5 p-1 bg-amber-100/70 dark:bg-slate-800/80 rounded-xl">
             {navItems.map(({ id, labelJa, labelEn, Icon }) => {
               const isActive = activeTab === id;
               return (
@@ -91,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
                   key={id}
                   onClick={() => handleTabChange(id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`flex items-center gap-1.5 px-3.5 h-10 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 px-2.5 h-10 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
                     isActive
                       ? 'bg-white dark:bg-slate-700 text-cyan-700 dark:text-cyan-300 shadow-sm'
                       : 'text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'
@@ -158,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
         className="xl:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_16px_rgba(15,23,42,0.06)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="max-w-2xl mx-auto grid grid-cols-6">
+        <div className="max-w-2xl mx-auto grid grid-cols-7">
           {navItems.map(({ id, shortJa, shortEn, Icon }) => {
             const isActive = activeTab === id;
             return (
