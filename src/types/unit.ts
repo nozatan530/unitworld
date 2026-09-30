@@ -25,6 +25,9 @@ export interface UnitDefinition {
   convEn?: string;
   // Map coordinates & island
   realmId: 'base' | 'mechanics' | 'wave' | 'em' | 'thermal' | 'atomic' | 'chem' | 'bio' | 'earth' | 'scale';
+  // 出てくる分野（主な分野 realmId を含む）。data/unitTopics.ts から入る
+  topics?: UnitDefinition['realmId'][];
+  course?: string;
   x: number;
   y: number;
   _dim?: Record<string, number>;

@@ -3,6 +3,7 @@ import { Search, Compass, BookOpen, ExternalLink, Sparkles } from 'lucide-react'
 import { UnitDefinition, SubjectType } from '../../types/unit';
 import {
   RAW_UNITS,
+  REALMS,
   unitsById,
   getUnitDim,
   formatDimSI,
@@ -10,26 +11,13 @@ import {
   getAncestors,
 } from '../../data/unitsData';
 import { sounds } from '../../utils/sound';
-import { uSym, uQty, subjLabel, unitSearchText, bySymLength } from '../../utils/i18n';
+import { uSym, uQty, subjLabel, unitSearchText, bySymLength, realmName, realmDesc } from '../../utils/i18n';
 
 interface UnitCatalogProps {
   onSelectUnit: (unit: UnitDefinition) => void;
   onFocusOnMap: (unit: UnitDefinition) => void;
   lang: 'ja' | 'en';
 }
-
-const FIELDS_ORDER = [
-  '基本単位',
-  '力学',
-  '熱',
-  '波・光',
-  '電磁気',
-  '原子',
-  '化学',
-  '生物',
-  '地学',
-  '天文',
-];
 
 const SUBJ_LIST: SubjectType[] = ['基本', '物理', '化学', '生物', '地学'];
 
@@ -52,12 +40,12 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
     });
   }, [searchQuery, activeSubj, activeKind]);
 
-  // Group by field
+  // 主な分野ごとにまとめる（ワールドマップの分野と同じ）
   const groupedByField = useMemo(() => {
     const groups: Record<string, UnitDefinition[]> = {};
     filteredUnits.forEach((u) => {
-      groups[u.field] = groups[u.field] || [];
-      groups[u.field].push(u);
+      groups[u.realmId] = groups[u.realmId] || [];
+      groups[u.realmId].push(u);
     });
     return groups;
   }, [filteredUnits]);
@@ -139,16 +127,19 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
 
       {/* Field Sections */}
       <div className="space-y-8">
-        {FIELDS_ORDER.filter((field) => groupedByField[field] && groupedByField[field].length > 0).map(
-          (field) => (
+        {REALMS.filter((r) => groupedByField[r.id] && groupedByField[r.id].length > 0).map(
+          (realm) => {
+            const field = realm.id;
+            return (
             <div key={field} className="space-y-3">
-              <div className="flex items-center gap-2 border-b border-amber-200/60 dark:border-slate-800 pb-2">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-amber-200/60 dark:border-slate-800 pb-2">
                 <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">
-                  {lang === 'ja' ? field : groupedByField[field][0].fieldEn || field}
+                  {realm.icon} {realmName(realm, lang)}
                 </h2>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                   {groupedByField[field].length}
                 </span>
+                <span className="text-xs text-slate-600 dark:text-slate-400">{realmDesc(realm, lang)}</span>
               </div>
 
               {/* Unit Cards Grid */}
@@ -212,7 +203,8 @@ export const UnitCatalog: React.FC<UnitCatalogProps> = ({
                 })}
               </div>
             </div>
-          )
+            );
+          }
         )}
       </div>
     </div>

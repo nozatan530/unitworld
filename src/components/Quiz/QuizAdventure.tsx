@@ -84,7 +84,7 @@ export const QuizAdventure: React.FC<QuizAdventureProps> = ({
         // 同じ記号・同じ量の単位は選択肢にしない
         const ok = (v: UnitDefinition) =>
           v.id !== u.id && v.kind !== 'scale' && uSym(v, lang) !== uSym(u, lang) && v.qty !== u.qty;
-        let others = shuffle(RAW_UNITS.filter((v) => ok(v) && v.field === u.field)).slice(0, 3);
+        let others = shuffle(RAW_UNITS.filter((v) => ok(v) && v.realmId === u.realmId)).slice(0, 3);
         if (others.length < 3)
           others = others.concat(shuffle(RAW_UNITS.filter((v) => ok(v) && !others.includes(v))).slice(0, 3 - others.length));
         if (others.length < 3) continue;

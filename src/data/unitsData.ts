@@ -1,4 +1,5 @@
 import { UnitDefinition, RealmInfo, MapLink } from '../types/unit';
+import { UNIT_TOPICS } from './unitTopics';
 
 export const BASE_ORDER = ['kg', 'm', 's', 'A', 'K', 'mol', 'cd'];
 export const BASE_LETTER: Record<string, string> = {
@@ -13,7 +14,7 @@ export const BASE_LETTER: Record<string, string> = {
 
 // 分野（ワールドマップの色分け・錬成ラボの材料の分類）。単位は field に合わせて振り分ける
 export const REALMS: RealmInfo[] = [
-  { id: 'base', name: '基本単位', nameEn: 'SI base units', color: '#475569', bgLight: '#F1F5F9', bgDark: '#1E293B', borderLight: '#CBD5E1', icon: '🌱', desc: 'すべての単位のもとになる7つのSI基本単位', descEn: 'The seven SI base units everything else is built from', x: 0, y: 0, width: 0, height: 0 },
+  { id: 'base', name: '基本単位', nameEn: 'SI base units', color: '#475569', bgLight: '#F1F5F9', bgDark: '#1E293B', borderLight: '#CBD5E1', icon: '🌱', desc: '7つのSI基本単位と、cm・g・L・分など大きさ違いのなかま', descEn: 'The seven SI base units and their everyday sizes (cm, g, L, min…)', x: 0, y: 0, width: 0, height: 0 },
   { id: 'mechanics', name: '力学', nameEn: 'Mechanics', color: '#2563EB', bgLight: '#EFF6FF', bgDark: '#172554', borderLight: '#BFDBFE', icon: '⚙️', desc: '速さ・力・エネルギー・圧力', descEn: 'Speed, force, energy and pressure', x: 0, y: 0, width: 0, height: 0 },
   { id: 'wave', name: '波・光', nameEn: 'Waves & light', color: '#0891B2', bgLight: '#ECFEFF', bgDark: '#083344', borderLight: '#A5F3FC', icon: '🌊', desc: '振動数・波長・光の量', descEn: 'Frequency, wavelength and light', x: 0, y: 0, width: 0, height: 0 },
   { id: 'thermal', name: '熱', nameEn: 'Heat', color: '#DC2626', bgLight: '#FEF2F2', bgDark: '#450A0A', borderLight: '#FECACA', icon: '🔥', desc: '温度・熱量・比熱', descEn: 'Temperature, heat and specific heat', x: 0, y: 0, width: 0, height: 0 },
@@ -1729,14 +1730,12 @@ export const RAW_UNITS: UnitDefinition[] = [
 ];
 
 // ===== 分野の振り分け =====
-// field（分野）から realmId を決める
-const FIELD_TO_REALM: Record<string, string> = {
-  基本単位: 'base', 力学: 'mechanics', '波・光': 'wave', 熱: 'thermal', 電磁気: 'em',
-  原子: 'atomic', 化学: 'chem', 生物: 'bio', 地学: 'earth', 天文: 'earth',
-};
-
+// 主な分野と、出てくる分野（data/unitTopics.ts）
 RAW_UNITS.forEach((u) => {
-  u.realmId = (u.kind === 'scale' ? 'scale' : FIELD_TO_REALM[u.field] || 'mechanics') as UnitDefinition['realmId'];
+  const t = UNIT_TOPICS[u.id];
+  u.realmId = t.main;
+  u.topics = Array.from(new Set([t.main, ...t.appears]));
+  u.course = t.course;
 });
 
 // Calculation of dimensions and unit map lookup

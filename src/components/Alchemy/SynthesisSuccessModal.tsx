@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { UnitDefinition } from '../../types/unit';
 import { sounds } from '../../utils/sound';
-import { uSym, bySymLength } from '../../utils/i18n';
+import { uSym, bySymLength, realmName } from '../../utils/i18n';
+import { realmById } from '../../data/mapLayout';
 
 interface SynthesisSuccessModalProps {
   unit: UnitDefinition;
@@ -514,7 +515,7 @@ export const SynthesisSuccessModal: React.FC<SynthesisSuccessModalProps> = ({
               <span>{lang === 'ja' ? `物理量: ${unit.qty}` : `Quantity: ${unit.qtyEn || unit.qty}`}</span>
               <span>·</span>
               <span className="text-slate-600 dark:text-slate-400">
-                {lang === 'ja' ? unit.field : unit.fieldEn || unit.field}
+                {realmById[unit.realmId]?.icon} {realmName(realmById[unit.realmId], lang)}
               </span>
             </div>
           </div>

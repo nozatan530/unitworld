@@ -272,7 +272,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
     const dimmed =
       (route && !inRoute) ||
       (!route && activeId && !isActive && !isIn && !isOut) ||
-      (!route && !activeId && realmFilter && u.realmId !== realmFilter);
+      (!route && !activeId && realmFilter && !(u.topics || [u.realmId]).includes(realmFilter as UnitDefinition['realmId']));
     const isBase = u.kind === 'base';
     const isScale = u.kind === 'scale';
     const done = crafted.has(u.id);
@@ -503,7 +503,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
         </div>
       )}
 
-      {/* 凡例：分野（タップでその分野だけ明るく）と線の見方 */}
+      {/* 凡例：分野（タップでその分野に出てくる単位だけ明るく）と線の見方 */}
       <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
         <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
           {REALMS.map((r) => {
@@ -517,7 +517,7 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
                   setRealmFilter(on ? null : r.id);
                 }}
                 aria-pressed={on}
-                className={`shrink-0 flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full border text-xs font-semibold whitespace-nowrap transition-colors ${
+                className={`shrink-0 flex items-center gap-1.5 pl-2.5 pr-3 min-h-9 rounded-full border text-sm font-semibold whitespace-nowrap transition-colors ${
                   on
                     ? 'text-white border-transparent'
                     : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-slate-400'
@@ -531,6 +531,18 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
             );
           })}
         </div>
+        {realmFilter && (
+          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+            {(() => {
+              const r = realmById[realmFilter];
+              const all = RAW_UNITS.filter((u) => u.topics?.includes(r.id as UnitDefinition['realmId'])).length;
+              const main = RAW_UNITS.filter((u) => u.realmId === r.id).length;
+              return ja
+                ? `${r.icon} ${realmName(r, lang)}で出てくる単位：${all}個（うち主な分野が${realmName(r, lang)}の単位 ${main}個）。ほかの分野の単位も、この分野で使うものは明るくなります。`
+                : `${r.icon} ${all} units appear in ${realmName(r, lang)} (${main} have it as their main topic).`;
+            })()}
+          </p>
+        )}
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
           <span>{ja ? '単位をタップ → つながりが光る（もう一度タップで詳しく）' : 'Tap a unit to light up its links (tap again for details)'}</span>
           <span className="flex items-center gap-1">
@@ -643,6 +655,17 @@ export const UnitMap: React.FC<UnitMapProps> = ({ onSelectUnit, selectedUnit, fo
               <div className="text-xs text-slate-600 dark:text-slate-400">
                 {uQty(focus, lang)} ・ {realmById[focus.realmId]?.icon} {realmName(realmById[focus.realmId], lang)}
               </div>
+              {(focus.topics || []).length > 1 && (
+                <div className="text-xs text-slate-600 dark:text-slate-400">
+                  {ja ? '出てくる分野：' : 'Also in: '}
+                  {(focus.topics || []).filter((t) => t !== 'base' && t !== 'scale').length >= 8
+                    ? ja ? 'すべての分野' : 'every topic'
+                    : (focus.topics || [])
+                        .filter((id) => id !== focus.realmId)
+                        .map((id) => `${realmById[id].icon}${realmName(realmById[id], lang)}`)
+                        .join(ja ? '・' : ', ')}
+                </div>
+              )}
               <div className="mt-1 text-sm font-serif text-slate-700 dark:text-slate-200">
                 {focus.forms?.[0]
                   ? `${uSym(focus, lang)} = ${recipeText(focus, lang)}`

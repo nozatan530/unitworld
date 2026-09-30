@@ -13,7 +13,8 @@ import {
   getSameDimensionUnits,
 } from '../../data/unitsData';
 import { sounds } from '../../utils/sound';
-import { uSym, uName, uQty, uConv, subjLabel, SUBJ_TAG_CLASS, bySymLength } from '../../utils/i18n';
+import { uSym, uName, uQty, uConv, bySymLength, realmName } from '../../utils/i18n';
+import { realmById } from '../../data/mapLayout';
 import { UnitTriviaQuizCard } from './UnitTriviaQuizCard';
 
 interface UnitDetailModalProps {
@@ -43,9 +44,6 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
   const handleSound = () => {
     sounds.playPop(580);
   };
-
-  const getSubjColor = (subj: string) =>
-    SUBJ_TAG_CLASS[subj] || 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
 
   const getKindLabel = (kind: string) => {
     if (lang === 'ja') {
@@ -108,11 +106,33 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300">
                   {getKindLabel(unit.kind)}
                 </span>
-                {unit.subj.map((s) => (
-                  <span key={s} className={`text-xs font-medium px-2 py-0.5 rounded-md ${getSubjColor(s)}`}>
-                    {subjLabel(s, lang)}
-                  </span>
-                ))}
+                {/* 出てくる分野（先頭が主な分野） */}
+                {(() => {
+                  // 全分野に出てくる単位（m・J など）は「ほか全分野」とまとめる
+                  const topics = unit.topics || [unit.realmId];
+                  const everywhere = topics.filter((t) => t !== 'base' && t !== 'scale').length >= 8;
+                  return (everywhere ? [unit.realmId] : topics).map((id, i) => {
+                  const r = realmById[id];
+                  return (
+                    <span
+                      key={id}
+                      className={`text-xs font-medium px-2 py-0.5 rounded-md border ${
+                        i === 0 ? 'font-bold text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
+                      } bg-white dark:bg-slate-800`}
+                      style={{ borderColor: r.color + (i === 0 ? '' : '66') }}
+                      title={i === 0 ? (lang === 'ja' ? '主な分野' : 'Main topic') : undefined}
+                    >
+                      {r.icon} {realmName(r, lang)}
+                    </span>
+                  );
+                  }).concat(
+                    everywhere ? (
+                      <span key="all" className="text-xs font-medium px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300">
+                        {lang === 'ja' ? 'ほか全分野' : 'and all other topics'}
+                      </span>
+                    ) : []
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-2">
