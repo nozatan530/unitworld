@@ -210,6 +210,10 @@ export default function App() {
           <a href="https://unit.meetupsensei.com/" className="hover:underline">
             {lang === 'ja' ? '単位のつながり帳' : 'Unit Connections'}
           </a>
+          {' '}／{' '}
+          <a href="https://meetupsensei.com/260926-blog/" className="hover:underline">
+            {lang === 'ja' ? '解説記事を読む' : 'Guide (Japanese)'}
+          </a>
         </p>
       </footer>
     </div>
